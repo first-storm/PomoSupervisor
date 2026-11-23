@@ -1,6 +1,6 @@
 //! App state, the 1-second loop, and one sample's trip through the decision chain.
 use crate::ax::{self, AxInfo};
-use crate::llm::{self, ChatModel, Judgement};
+use crate::llm::{self, Judge, Judgement};
 use crate::pipeline::{Outcome, Stage, StageResult, Verdict, run_chain};
 use crate::sampler::{self, Sample};
 use crate::settings::Settings;
@@ -40,8 +40,8 @@ pub struct Core {
 
 #[derive(Default)]
 pub struct Models {
-    pub text: Option<Arc<ChatModel>>,
-    pub vision: Option<Arc<ChatModel>>,
+    pub text: Option<Arc<Judge>>,
+    pub vision: Option<Arc<Judge>>,
     pub text_error: Option<String>,
     pub vision_error: Option<String>,
 }
@@ -479,7 +479,7 @@ fn build_stages(state: &Arc<AppState>, s: &Arc<Sample>, settings: &Arc<Settings>
                 let cached = state.core.lock().unwrap().text_cache.get(&key).cloned();
                 let (j, was_cached) = match cached {
                     Some(j) => (j, true),
-                    None => match llm::judge_text(&model, &task, &s, ax.as_ref()).await {
+                    None => match llm::judge_text(&model, &task, &s, ax.as_ref(), settings.confidence).await {
                         Ok(j) => {
                             state.core.lock().unwrap().text_cache.put(key, j.clone());
                             (j, false)
@@ -531,7 +531,16 @@ fn build_stages(state: &Arc<AppState>, s: &Arc<Sample>, settings: &Arc<Settings>
                     .map(|(_, j)| j.clone());
                 let (j, was_cached) = match reuse {
                     Some(j) => (j, true),
-                    None => match llm::judge_image(&model, &task, &s, ax_for(&ax_cell, &s, &settings).await.as_ref(), shot.jpeg_b64).await {
+                    None => match llm::judge_image(
+                        &model,
+                        &task,
+                        &s,
+                        ax_for(&ax_cell, &s, &settings).await.as_ref(),
+                        llm::Picture { jpeg_b64: shot.jpeg_b64, width: shot.width, height: shot.height },
+                        settings.confidence,
+                    )
+                    .await
+                    {
                         Ok(j) => {
                             state.core.lock().unwrap().last_vision = Some((shot.hash, j.clone()));
                             (j, false)

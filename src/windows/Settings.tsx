@@ -11,16 +11,26 @@ const PANES: [PaneId, string][] = [
   ["privacy", "隐私"],
 ];
 
-const KIND_LABEL: Record<ProviderKind, string> = { openai: "OpenAI 兼容", anthropic: "Anthropic", ollama: "Ollama（本地）" };
+const KIND_LABEL: Record<ProviderKind, string> = {
+  openai: "OpenAI 兼容",
+  anthropic: "Anthropic",
+  ollama: "Ollama（本地）",
+  decision: "Decision 模型（System One 兼容）",
+  openai_decisions: "Decision 模型（OpenAI）",
+};
 const URL_HINT: Record<ProviderKind, string> = {
   openai: "留空为 OpenAI 官方；其他需带 /v1",
   anthropic: "留空为官方地址",
   ollama: "留空为 http://localhost:11434",
+  decision: "完整 endpoint；留空为 TypeSafe，如 https://openrouter.ai/api/alpha/decisions",
+  openai_decisions: "完整 endpoint；留空为 https://api.openai.com/v1/decisions",
 };
 const MODEL_HINT: Record<ProviderKind, Record<Slot, string>> = {
   openai: { text: "如 deepseek-chat / gpt-4o-mini", vision: "需支持图片输入的模型" },
   anthropic: { text: "如 claude-haiku-5-5", vision: "如 claude-haiku-5-5" },
   ollama: { text: "如 qwen2.5:7b", vision: "如 qwen2.5vl:7b" },
+  decision: { text: "如 jev-latest / typesafe/jev-1.14", vision: "需支持图片，如 jev-1.14" },
+  openai_decisions: { text: "如 gpt-6-luna", vision: "如 gpt-6-luna" },
 };
 
 type Update = (patch: Partial<Settings>) => void;
@@ -344,7 +354,7 @@ function ModelsPane({ s, update }: { s: Settings; update: Update }) {
         <Provider slot="vision" title="视觉模型" cfg={s.vision_model} status={status} onKeySaved={refresh} onChange={(c) => update({ vision_model: c })} />
       </div>
       <div className="rows">
-        <Row name="有把握阈值" desc="文本模型的把握低于它，就交给视觉模型（或不下结论）">
+        <Row name="有把握阈值" desc="文本模型的把握低于它，就交给视觉模型（或不下结论）；Decision 模型低于它时视为没把握">
           <input
             type="range"
             aria-label="有把握阈值"

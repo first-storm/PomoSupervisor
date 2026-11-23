@@ -189,7 +189,7 @@ pub async fn test_provider(state: State<'_, Arc<AppState>>, slot: String) -> Res
         if slot == "text" { (m.text.clone(), m.text_error.clone()) } else { (m.vision.clone(), m.vision_error.clone()) }
     };
     let model = model.ok_or_else(|| err.unwrap_or_else(|| "尚未配置该模型".into()))?;
-    crate::llm::ping(&model).await.map_err(|e| e.to_string())
+    if slot == "vision" { crate::llm::ping_image(&model).await } else { crate::llm::ping(&model).await }.map_err(|e| e.to_string())
 }
 
 #[tauri::command]

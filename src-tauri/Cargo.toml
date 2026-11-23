@@ -37,6 +37,8 @@ rusqlite = { version = "0.43.0", features = ["bundled"] }
 keyring = { version = "3", features = ["apple-native"] }
 lru = "0.19.1"
 futures = "0.3.34"
+# Decision-model endpoints (rig has no client for them); same features rig-reqwest builds, so no second TLS stack.
+reqwest = { version = "0.13", default-features = false, features = ["json", "rustls", "charset", "http2", "system-proxy"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 # Activate the app when the popover opens from the tray, so clicking elsewhere hides it.

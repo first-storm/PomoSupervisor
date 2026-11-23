@@ -43,7 +43,7 @@ export interface VerdictEvent {
   alerted: boolean;
 }
 
-export type ProviderKind = "openai" | "anthropic" | "ollama";
+export type ProviderKind = "openai" | "anthropic" | "ollama" | "decision" | "openai_decisions";
 export interface ProviderConfig {
   kind: ProviderKind;
   base_url: string;

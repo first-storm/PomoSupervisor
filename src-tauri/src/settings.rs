@@ -7,12 +7,18 @@ pub enum ProviderKind {
     OpenAI,
     Anthropic,
     Ollama,
+    /// A decision model speaking TypeSafe's System One shape (TypeSafe, OpenRouter, AIMLAPI…).
+    #[serde(rename = "decision")]
+    Decision,
+    /// OpenAI's Decisions API.
+    #[serde(rename = "openai_decisions")]
+    OpenAIDecisions,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ProviderConfig {
     pub kind: ProviderKind,
-    /// Empty means the provider's default endpoint.
+    /// Empty means the provider's default endpoint. For decision models, the full endpoint URL.
     #[serde(default)]
     pub base_url: String,
     pub model: String,
@@ -139,5 +145,26 @@ impl Settings {
         self.phash_threshold = self.phash_threshold.clamp(0, 64);
         self.streak = self.streak.clamp(1, 20);
         self
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn provider_kinds_round_trip() {
+        for (kind, name) in [
+            (ProviderKind::OpenAI, "openai"),
+            (ProviderKind::Ollama, "ollama"),
+            (ProviderKind::Decision, "decision"),
+            (ProviderKind::OpenAIDecisions, "openai_decisions"),
+        ] {
+            assert_eq!(serde_json::to_string(&kind).unwrap(), format!("\"{name}\""));
+            assert_eq!(serde_json::from_str::<ProviderKind>(&format!("\"{name}\"")).unwrap(), kind);
+        }
+        let old = r#"{"text_model":{"kind":"anthropic","model":"claude-haiku-5-5"}}"#;
+        let s: Settings = serde_json::from_str(old).unwrap();
+        assert_eq!(s.text_model.unwrap().kind, ProviderKind::Anthropic);
     }
 }
