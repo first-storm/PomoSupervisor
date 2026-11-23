@@ -14,18 +14,25 @@
       {
         "label": "main",
         "title": "PomoSupervisor",
-        "width": 400,
-        "height": 660,
-        "minWidth": 360,
-        "minHeight": 560,
-        "resizable": true,
-        "titleBarStyle": "Overlay",
-        "hiddenTitle": true
+        "url": "index.html",
+        "width": 320,
+        "height": 440,
+        "resizable": false,
+        "decorations": false,
+        "transparent": true,
+        "shadow": true,
+        "visible": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "visibleOnAllWorkspaces": true,
+        "acceptFirstMouse": true,
+        "focus": false
       }
     ],
     "security": {
       "csp": null
-    }
+    },
+    "macOSPrivateApi": true
   },
   "bundle": {
     "active": true,

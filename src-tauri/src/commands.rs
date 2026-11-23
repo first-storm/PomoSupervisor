@@ -1,6 +1,6 @@
 use crate::app::{AppState, TimerView, VerdictEvent, emit_tick};
 use crate::settings::Settings;
-use crate::store::Stats;
+use crate::store::{Review, Stats};
 use serde::Serialize;
 use std::sync::Arc;
 use tauri::{AppHandle, State};
@@ -18,17 +18,97 @@ pub fn last_verdict(state: St) -> Option<VerdictEvent> {
 }
 
 #[tauri::command]
-pub fn start_focus(app: AppHandle, state: St, task: String) -> TimerView {
-    state.start_focus(task.trim().to_string());
+pub fn start_focus(app: AppHandle, state: St, task: String, minutes: Option<u32>, allow: Option<Vec<String>>) -> TimerView {
+    let allow = allow.unwrap_or_default().into_iter().map(|a| a.trim().to_string()).filter(|a| !a.is_empty()).collect();
+    state.start_focus(task.trim().to_string(), minutes, allow);
     emit_tick(&app, &state);
     state.view()
 }
 
 #[tauri::command]
 pub fn start_break(app: AppHandle, state: St) -> TimerView {
-    state.start_break(false);
+    state.start_break();
     emit_tick(&app, &state);
     state.view()
+}
+
+#[tauri::command]
+pub fn rest(app: AppHandle, state: St, minutes: u32) -> TimerView {
+    state.rest(minutes);
+    emit_tick(&app, &state);
+    state.view()
+}
+
+#[tauri::command]
+pub fn allow_for_round(app: AppHandle, state: St, item: String) -> TimerView {
+    state.allow_for_round(&item);
+    emit_tick(&app, &state);
+    state.view()
+}
+
+/// "其实在工作": whitelist this app or site for good.
+#[tauri::command]
+pub fn mark_as_work(state: St, app_name: String, url: Option<String>) -> Result<String, String> {
+    let target = crate::rules::allow_target(&app_name, url.as_deref());
+    state.mark_as_work(&target).map_err(|e| e.to_string())?;
+    Ok(target)
+}
+
+#[tauri::command]
+pub fn set_auto_resume(app: AppHandle, state: St, on: bool) -> Result<TimerView, String> {
+    let mut s = state.settings();
+    s.auto_resume = on;
+    s.save(&state.settings_path).map_err(|e| e.to_string())?;
+    *state.settings.write().unwrap() = s;
+    emit_tick(&app, &state);
+    Ok(state.view())
+}
+
+#[tauri::command]
+pub fn recent_verdicts(state: St) -> Vec<VerdictEvent> {
+    state.core.lock().unwrap().recent.iter().cloned().collect()
+}
+
+#[tauri::command]
+pub fn get_review(state: St, id: Option<i64>) -> Result<Option<Review>, String> {
+    let every = state.settings.read().unwrap().sample_secs;
+    state.store.lock().unwrap().review(id, every).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn today_completed(state: St) -> Result<i64, String> {
+    state.store.lock().unwrap().today_completed().map_err(|e| e.to_string())
+}
+
+// ---- windows ----
+
+#[tauri::command]
+pub fn open_window(app: AppHandle, label: String) -> Result<(), String> {
+    matches!(label.as_str(), "review" | "settings").then_some(()).ok_or("未知窗口")?;
+    crate::windows::open(&app, &label);
+    Ok(())
+}
+
+#[tauri::command]
+pub fn close_window(app: AppHandle, window: tauri::WebviewWindow) {
+    match window.label() {
+        "main" => crate::windows::dismiss_popover(&app),
+        // Settings asked to close itself after flushing its last save (see lib.rs).
+        _ => {
+            let _ = window.destroy();
+        }
+    }
+}
+
+/// The popover sizes itself to its card and stays centred under the tray icon.
+#[tauri::command]
+pub fn popover_fit(app: AppHandle, width: f64, height: f64) {
+    crate::windows::fit_popover(&app, width, height);
+}
+
+#[tauri::command]
+pub fn popover_menu(window: tauri::WebviewWindow) -> Result<(), String> {
+    crate::windows::more_menu(&window).map_err(|e| e.to_string())
 }
 
 #[tauri::command]

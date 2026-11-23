@@ -19,6 +19,46 @@ pub fn host_of(url: &str) -> Option<String> {
     url::Url::parse(url).ok()?.host_str().map(|h| h.to_lowercase())
 }
 
+/// Apps and sites allowed for this round only. They win over the block lists.
+pub fn round_allow(extra: &[String], s: &Sample) -> Option<RuleHit> {
+    let host = s.url.as_deref().and_then(host_of);
+    extra
+        .iter()
+        .find(|e| {
+            eq_ci(e, &s.app)
+                || s.bundle_name.as_deref().is_some_and(|b| eq_ci(e, b))
+                || host.as_deref().is_some_and(|h| e.contains('.') && domain_matches(h, e))
+        })
+        .map(|e| (true, format!("本轮允许：{e}")))
+}
+
+/// The entry to whitelist for a sample: its site when there is a URL, else its app.
+pub fn allow_target(app: &str, url: Option<&str>) -> String {
+    match url.and_then(host_of) {
+        Some(h) => h.strip_prefix("www.").unwrap_or(&h).to_string(),
+        None => app.to_string(),
+    }
+}
+
+/// Move `target` from the block lists to the allow list (domain or app, by shape).
+pub fn mark_as_work(rules: &mut Rules, target: &str) {
+    let t = target.trim();
+    if t.is_empty() {
+        return;
+    }
+    if t.contains('.') && !t.contains(' ') {
+        rules.block_domains.retain(|d| !domain_matches(t, d));
+        if !rules.allow_domains.iter().any(|d| domain_matches(t, d)) {
+            rules.allow_domains.push(t.to_string());
+        }
+    } else {
+        rules.block_apps.retain(|a| !eq_ci(a, t));
+        if !rules.allow_apps.iter().any(|a| eq_ci(a, t)) {
+            rules.allow_apps.push(t.to_string());
+        }
+    }
+}
+
 pub fn evaluate(rules: &Rules, s: &Sample) -> Option<RuleHit> {
     let app_hit = |list: &[String]| {
         list.iter().find(|a| eq_ci(a, &s.app) || s.bundle_name.as_deref().is_some_and(|b| eq_ci(a, b))).cloned()
@@ -75,6 +115,27 @@ mod tests {
         // Firefox gives no URL: the title keyword still catches it.
         assert_eq!(evaluate(&r, &sample("Firefox", "【游戏】哔哩哔哩 — Mozilla Firefox", None)).unwrap().0, false);
         assert!(evaluate(&r, &sample("Firefox", "Some random article", None)).is_none());
+    }
+
+    #[test]
+    fn round_allow_beats_block_list() {
+        let s = sample("Safari", "x", Some("https://www.bilibili.com/video/1"));
+        assert!(round_allow(&["bilibili.com".into()], &s).unwrap().0);
+        assert!(round_allow(&["Terminal".into()], &s).is_none());
+        assert!(round_allow(&["safari".into()], &s).is_some());
+    }
+
+    #[test]
+    fn mark_as_work_moves_entries() {
+        let mut r = Rules::default();
+        mark_as_work(&mut r, &allow_target("Safari", Some("https://www.bilibili.com/x")));
+        assert!(!r.block_domains.iter().any(|d| d == "bilibili.com"));
+        assert!(r.allow_domains.iter().any(|d| d == "bilibili.com"));
+        mark_as_work(&mut r, "Steam");
+        assert!(!r.block_apps.iter().any(|a| a == "Steam"));
+        assert!(r.allow_apps.iter().any(|a| a == "Steam"));
+        let s = sample("Safari", "x", Some("https://bilibili.com/"));
+        assert!(evaluate(&r, &s).unwrap().0);
     }
 
     #[test]

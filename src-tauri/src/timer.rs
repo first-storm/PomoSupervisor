@@ -25,11 +25,24 @@ pub struct Timer {
     /// Focus rounds finished in the current long-break cycle.
     pub cycle: u32,
     pub task: String,
+    /// Seconds the current pause has lasted.
+    pub paused_for: u32,
+    /// The break owed by the focus round that just finished, until it is taken or skipped.
+    pub pending_break: Option<Phase>,
 }
 
 impl Default for Timer {
     fn default() -> Self {
-        Self { phase: Phase::Idle, remaining: 0, total: 0, pause: None, cycle: 0, task: String::new() }
+        Self {
+            phase: Phase::Idle,
+            remaining: 0,
+            total: 0,
+            pause: None,
+            cycle: 0,
+            task: String::new(),
+            paused_for: 0,
+            pending_break: None,
+        }
     }
 }
 
@@ -39,6 +52,8 @@ impl Timer {
         self.total = secs;
         self.remaining = secs;
         self.pause = None;
+        self.paused_for = 0;
+        self.pending_break = None;
     }
 
     pub fn stop(&mut self) {
@@ -46,6 +61,7 @@ impl Timer {
         self.remaining = 0;
         self.total = 0;
         self.pause = None;
+        self.paused_for = 0;
     }
 
     pub fn elapsed(&self) -> u32 {
@@ -54,9 +70,14 @@ impl Timer {
 
     /// One second passes. Returns the phase that just ran out, if any.
     pub fn tick(&mut self) -> Option<Phase> {
-        if self.phase == Phase::Idle || self.pause.is_some() {
+        if self.phase == Phase::Idle {
             return None;
         }
+        if self.pause.is_some() {
+            self.paused_for += 1;
+            return None;
+        }
+        self.paused_for = 0;
         self.remaining = self.remaining.saturating_sub(1);
         (self.remaining == 0).then_some(self.phase)
     }
@@ -92,6 +113,10 @@ mod tests {
         t.pause = Some(PauseReason::Away);
         assert_eq!(t.tick(), None);
         assert_eq!(t.remaining, 5);
+        assert_eq!(t.paused_for, 1);
+        t.pause = None;
+        t.tick();
+        assert_eq!(t.paused_for, 0);
     }
 
     #[test]

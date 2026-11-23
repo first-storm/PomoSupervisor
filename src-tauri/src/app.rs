@@ -9,12 +9,16 @@ use crate::timer::{PauseReason, Phase, Timer};
 use image_hasher::ImageHash;
 use lru::LruCache;
 use serde::Serialize;
+use std::collections::VecDeque;
 use std::num::NonZeroUsize;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_notification::NotificationExt;
+
+/// Ticks on the popover's dial.
+pub const DIAL_TICKS: u32 = 50;
 
 pub struct Core {
     pub timer: Timer,
@@ -23,6 +27,14 @@ pub struct Core {
     pub last: Option<VerdictEvent>,
     pub text_cache: LruCache<String, Judgement>,
     pub last_vision: Option<(ImageHash, Judgement)>,
+    /// Apps and sites allowed for this round only (kept as the next round's starting list).
+    pub round_allow: Vec<String>,
+    /// The latest verdicts, newest last; the nudge shows why it fired from these.
+    pub recent: VecDeque<VerdictEvent>,
+    /// Dial ticks (0..DIAL_TICKS) during which a sample was judged distracted, this round.
+    pub distracted_ticks: Vec<u32>,
+    /// Seconds left of a "rest a few minutes" pause taken during focus.
+    pub rest_left: Option<u32>,
 }
 
 #[derive(Default)]
@@ -55,6 +67,15 @@ pub struct TimerView {
     pub streak: u32,
     pub threshold: u32,
     pub focus_secs: u32,
+    pub paused_for: u32,
+    pub idle_secs: u64,
+    pub rest_left: Option<u32>,
+    pub auto_resume: bool,
+    /// Minutes of the break owed by the round that just finished (None: no break owed).
+    pub next_break_min: Option<u32>,
+    pub short_break_min: u32,
+    pub round_allow: Vec<String>,
+    pub distracted_ticks: Vec<u32>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -87,6 +108,10 @@ impl AppState {
                 last: None,
                 text_cache: LruCache::new(NonZeroUsize::new(128).unwrap()),
                 last_vision: None,
+                round_allow: Vec::new(),
+                recent: VecDeque::new(),
+                distracted_ticks: Vec::new(),
+                rest_left: None,
             }),
             settings: RwLock::new(settings),
             settings_path,
@@ -139,43 +164,59 @@ impl AppState {
             streak: core.smoother.streak,
             threshold: s.streak,
             focus_secs: s.focus_min * 60,
+            paused_for: t.paused_for,
+            idle_secs: s.idle_secs,
+            rest_left: core.rest_left,
+            auto_resume: s.auto_resume,
+            next_break_min: t.pending_break.map(|p| if p == Phase::LongBreak { s.long_break_min } else { s.short_break_min }),
+            short_break_min: s.short_break_min,
+            round_allow: core.round_allow.clone(),
+            distracted_ticks: core.distracted_ticks.clone(),
         }
     }
 
     // ---- timer actions ----
 
-    pub fn start_focus(&self, task: String) {
+    /// `minutes`: this round's length (the setting when None). `allow`: this round's extra allow list.
+    pub fn start_focus(&self, task: String, minutes: Option<u32>, allow: Vec<String>) {
         let s = self.settings();
+        let secs = minutes.unwrap_or(s.focus_min).clamp(1, 180) * 60;
         let mut core = self.core.lock().unwrap();
         self.close_session(&mut core, false);
-        if core.timer.task != task {
+        if core.timer.task != task || core.round_allow != allow {
             core.text_cache.clear();
             core.last_vision = None;
         }
         core.timer.task = task.clone();
-        core.timer.start(Phase::Focus, s.focus_min * 60);
+        core.timer.start(Phase::Focus, secs);
+        core.round_allow = allow;
         core.smoother.reset();
         core.last = None;
-        core.session_id = self.store.lock().unwrap().start_session(&task, s.focus_min * 60).ok();
+        core.recent.clear();
+        core.distracted_ticks.clear();
+        core.rest_left = None;
+        core.session_id = self.store.lock().unwrap().start_session(&task, secs).ok();
         self.since_sample.store(0, Ordering::Relaxed);
     }
 
-    /// `after_focus`: a focus round just completed and counts toward the long break.
-    /// A break started by hand from idle is always a short one and counts nothing.
-    pub fn start_break(&self, after_focus: bool) {
+    /// Takes the break the last focus round earned; from idle with nothing owed, a short one.
+    pub fn start_break(&self) {
         let s = self.settings();
         let mut core = self.core.lock().unwrap();
         self.close_session(&mut core, false);
-        let phase = if after_focus { core.timer.next_break(s.long_break_every) } else { Phase::ShortBreak };
+        let phase = core.timer.pending_break.take().unwrap_or(Phase::ShortBreak);
         let mins = if phase == Phase::LongBreak { s.long_break_min } else { s.short_break_min };
         core.timer.start(phase, mins * 60);
+        core.rest_left = None;
     }
 
     pub fn stop(&self) {
         let mut core = self.core.lock().unwrap();
         self.close_session(&mut core, false);
         core.timer.stop();
+        core.timer.pending_break = None;
         core.smoother.reset();
+        core.rest_left = None;
     }
 
     pub fn set_user_pause(&self, paused: bool) {
@@ -184,6 +225,41 @@ impl AppState {
             return;
         }
         core.timer.pause = paused.then_some(PauseReason::User);
+        core.rest_left = None;
+    }
+
+    /// Pause the focus round for a few minutes, then carry on by itself.
+    pub fn rest(&self, minutes: u32) {
+        let mut core = self.core.lock().unwrap();
+        if core.timer.phase != Phase::Focus {
+            return;
+        }
+        core.timer.pause = Some(PauseReason::User);
+        core.rest_left = Some(minutes.clamp(1, 60) * 60);
+        core.smoother.reset();
+    }
+
+    pub fn allow_for_round(&self, item: &str) {
+        let item = item.trim();
+        let mut core = self.core.lock().unwrap();
+        if !item.is_empty() && !core.round_allow.iter().any(|a| a.eq_ignore_ascii_case(item)) {
+            core.round_allow.push(item.to_string());
+            core.text_cache.clear();
+            core.last_vision = None;
+        }
+        core.smoother.reset();
+    }
+
+    /// Move `target` (an app or a site) onto the allow list for good.
+    pub fn mark_as_work(&self, target: &str) -> anyhow::Result<()> {
+        let mut s = self.settings();
+        crate::rules::mark_as_work(&mut s.rules, target);
+        s.save(&self.settings_path)?;
+        *self.settings.write().unwrap() = s;
+        let mut core = self.core.lock().unwrap();
+        core.text_cache.clear();
+        core.last_vision = None;
+        Ok(())
     }
 
     fn close_session(&self, core: &mut Core, completed: bool) {
@@ -207,16 +283,41 @@ fn fmt_mmss(secs: u32) -> String {
     format!("{:02}:{:02}", secs / 60, secs % 60)
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum TrayLook {
+    Idle,
+    Focus,
+    Paused,
+}
+
+static TRAY_LOOK: Mutex<Option<TrayLook>> = Mutex::new(None);
+
 fn update_tray(app: &AppHandle, v: &TimerView) {
     let Some(tray) = app.tray_by_id("main") else { return };
-    let title = match (v.phase, v.paused) {
-        (Phase::Idle, _) => String::new(),
-        (_, Some(PauseReason::Away)) => format!(" 离开 {}", fmt_mmss(v.remaining)),
-        (_, Some(PauseReason::User)) => format!(" ⏸ {}", fmt_mmss(v.remaining)),
-        (Phase::Focus, None) => format!(" {}", fmt_mmss(v.remaining)),
-        (_, None) => format!(" ☕ {}", fmt_mmss(v.remaining)),
+    let title = match v.phase {
+        Phase::Idle => String::new(),
+        _ => format!(" {}", fmt_mmss(v.remaining)),
     };
     let _ = tray.set_title(Some(title));
+    let look = match (v.phase, v.paused) {
+        (Phase::Idle, _) => TrayLook::Idle,
+        (_, Some(_)) => TrayLook::Paused,
+        (Phase::Focus, None) => TrayLook::Focus,
+        (_, None) => TrayLook::Idle,
+    };
+    let mut cur = TRAY_LOOK.lock().unwrap();
+    if *cur == Some(look) {
+        return;
+    }
+    *cur = Some(look);
+    // The focus icon is the tomato in colour; the others are template icons that follow the menu bar.
+    let (img, template) = match look {
+        TrayLook::Idle => (tauri::include_image!("icons/tray.png"), true),
+        TrayLook::Focus => (tauri::include_image!("icons/tray-focus.png"), false),
+        TrayLook::Paused => (tauri::include_image!("icons/tray-paused.png"), true),
+    };
+    let _ = tray.set_icon(Some(img));
+    let _ = tray.set_icon_as_template(template);
 }
 
 pub fn emit_tick(app: &AppHandle, state: &AppState) {
@@ -233,7 +334,21 @@ pub fn spawn_loop(app: AppHandle) {
         loop {
             iv.tick().await;
             let state = app.state::<Arc<AppState>>().inner().clone();
-            let ended = state.core.lock().unwrap().timer.tick();
+            let ended = {
+                let mut core = state.core.lock().unwrap();
+                // A timed rest during focus counts down, then the round carries on.
+                if let Some(left) = core.rest_left {
+                    if core.timer.pause != Some(PauseReason::User) {
+                        core.rest_left = None;
+                    } else if left <= 1 {
+                        core.rest_left = None;
+                        core.timer.pause = None;
+                    } else {
+                        core.rest_left = Some(left - 1);
+                    }
+                }
+                core.timer.tick()
+            };
             if let Some(phase) = ended {
                 on_phase_end(&app, &state, phase);
             }
@@ -269,13 +384,17 @@ fn on_phase_end(app: &AppHandle, state: &AppState, phase: Phase) {
     let sound = state.settings.read().unwrap().sound;
     match phase {
         Phase::Focus => {
+            let every = state.settings.read().unwrap().long_break_every;
             {
                 let mut core = state.core.lock().unwrap();
                 state.close_session(&mut core, true);
+                let next = core.timer.next_break(every);
+                core.timer.stop();
+                core.timer.pending_break = Some(next);
+                core.smoother.reset();
             }
-            state.start_break(true);
-            let mins = state.view().total / 60;
-            notify(app, "🍅 番茄完成！", &format!("休息 {mins} 分钟吧。"));
+            notify(app, "番茄完成", "看看这一轮的回顾，再决定休息还是继续。");
+            crate::windows::open(app, "review");
         }
         Phase::ShortBreak | Phase::LongBreak => {
             state.core.lock().unwrap().timer.stop();
@@ -303,12 +422,14 @@ fn build_stages(state: &Arc<AppState>, s: &Arc<Sample>, settings: &Arc<Settings>
         }));
     }
 
-    // 2. App / domain / title rules.
+    // 2. This round's allow list, then app / domain / title rules.
     {
-        let (s, settings) = (s.clone(), settings.clone());
+        let (state, s, settings) = (state.clone(), s.clone(), settings.clone());
         stages.push(Box::new(move || {
             Box::pin(async move {
-                match crate::rules::evaluate(&settings.rules, &s) {
+                let extra = state.core.lock().unwrap().round_allow.clone();
+                let hit = crate::rules::round_allow(&extra, &s).or_else(|| crate::rules::evaluate(&settings.rules, &s));
+                match hit {
                     Some((focused, reason)) => {
                         StageResult::Decided(Verdict { focused, stage: "rules", reason, confidence: 1.0, cached: false })
                     }
@@ -323,6 +444,9 @@ fn build_stages(state: &Arc<AppState>, s: &Arc<Sample>, settings: &Arc<Settings>
         let (state, s, settings, task) = (state.clone(), s.clone(), settings.clone(), task.clone());
         stages.push(Box::new(move || {
             Box::pin(async move {
+                if !settings.text_enabled {
+                    return StageResult::Pass(None);
+                }
                 let model = state.models.read().unwrap().text.clone();
                 let Some(model) = model else { return StageResult::Pass(None) };
                 let key = cache_key(&task, &s);
@@ -432,8 +556,18 @@ async fn run_sample(app: &AppHandle, state: &Arc<AppState>) {
             Outcome::Away => {
                 core.timer.pause.get_or_insert(PauseReason::Away);
             }
-            _ if core.timer.pause == Some(PauseReason::Away) => core.timer.pause = None,
+            // Back from being away: carry on, or hold until the person clicks to continue.
+            _ if core.timer.pause == Some(PauseReason::Away) => {
+                core.timer.pause = (!settings.auto_resume).then_some(PauseReason::User);
+            }
             _ => {}
+        }
+        if matches!(&outcome, Outcome::Decided(v) if !v.focused) && core.timer.total > 0 {
+            let tick = core.timer.elapsed() * DIAL_TICKS / core.timer.total;
+            let tick = tick.min(DIAL_TICKS - 1);
+            if !core.distracted_ticks.contains(&tick) {
+                core.distracted_ticks.push(tick);
+            }
         }
         let signal = match &outcome {
             Outcome::Decided(v) if v.focused => Signal::Focused,
@@ -464,12 +598,8 @@ async fn run_sample(app: &AppHandle, state: &Arc<AppState>) {
             let _ = db.log_alert(session, &stage, &sample, &reason);
         }
     }
-    if alerted {
-        let what = sample.bundle_name.clone().unwrap_or_else(|| sample.app.clone());
-        notify(app, "⚠️ 你好像分心了", &format!("{what}：{reason}"));
-        if settings.sound {
-            play("Sosumi");
-        }
+    if alerted && settings.sound {
+        play("Sosumi");
     }
 
     let ev = VerdictEvent {
@@ -487,7 +617,19 @@ async fn run_sample(app: &AppHandle, state: &Arc<AppState>) {
         threshold: settings.streak,
         alerted,
     };
-    state.core.lock().unwrap().last = Some(ev.clone());
+    {
+        let mut core = state.core.lock().unwrap();
+        core.last = Some(ev.clone());
+        if !own {
+            core.recent.push_back(ev.clone());
+            while core.recent.len() > 20 {
+                core.recent.pop_front();
+            }
+        }
+    }
     let _ = app.emit("supervisor://verdict", &ev);
     emit_tick(app, state);
+    if alerted {
+        crate::windows::show_popover(app, "nudge");
+    }
 }

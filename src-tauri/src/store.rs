@@ -55,6 +55,92 @@ pub struct Stats {
     pub week: Vec<DayRow>,
 }
 
+#[derive(Serialize, Debug, Clone, PartialEq)]
+pub struct Segment {
+    /// "focus" | "distract" | "away"
+    pub kind: &'static str,
+    pub from: i64,
+    pub to: i64,
+}
+
+#[derive(Serialize, Debug, Clone)]
+pub struct Distraction {
+    pub at: i64,
+    pub secs: i64,
+    pub app: String,
+    pub title: String,
+    pub url: Option<String>,
+    pub stage: String,
+    pub reason: String,
+}
+
+/// One finished round, as the Review window shows it.
+#[derive(Serialize)]
+pub struct Review {
+    pub id: i64,
+    pub task: String,
+    pub started: i64,
+    pub ended: i64,
+    pub planned_secs: i64,
+    pub focus_secs: i64,
+    pub distract_secs: i64,
+    pub away_secs: i64,
+    pub completed: bool,
+    /// This round's number among today's rounds.
+    pub ordinal: i64,
+    pub alerts: i64,
+    pub segments: Vec<Segment>,
+    pub distractions: Vec<Distraction>,
+    pub stages: StageCounts,
+}
+
+struct Ev {
+    at: i64,
+    stage: String,
+    result: String,
+    app: String,
+    title: String,
+    url: Option<String>,
+    reason: String,
+}
+
+/// Each sample stands for the time until the next one, up to `cap` seconds; longer gaps
+/// (a manual pause stops sampling) count as away. Runs of the same kind are merged.
+fn build_segments(started: i64, ended: i64, evs: &[Ev], cap: i64) -> (Vec<Segment>, Vec<(usize, i64)>) {
+    let mut segs: Vec<Segment> = Vec::new();
+    let mut push = |kind: &'static str, from: i64, to: i64| {
+        if to <= from {
+            return;
+        }
+        match segs.last_mut() {
+            Some(last) if last.kind == kind && last.to == from => last.to = to,
+            _ => segs.push(Segment { kind, from, to }),
+        }
+    };
+    if let Some(first) = evs.first() {
+        push("focus", started, first.at.min(ended));
+    } else {
+        push("focus", started, ended);
+    }
+    let mut prev = "focus";
+    let mut durs = Vec::with_capacity(evs.len());
+    for (i, e) in evs.iter().enumerate() {
+        let next = evs.get(i + 1).map(|n| n.at).unwrap_or(ended).max(e.at);
+        let kind = match e.result.as_str() {
+            "focused" => "focus",
+            "distracted" => "distract",
+            "away" => "away",
+            _ => prev,
+        };
+        let covered = (next - e.at).min(cap);
+        push(kind, e.at, e.at + covered);
+        push("away", e.at + covered, next);
+        durs.push((i, covered));
+        prev = kind;
+    }
+    (segs, durs)
+}
+
 impl Store {
     pub fn open(path: &Path) -> anyhow::Result<Self> {
         if let Some(dir) = path.parent() {
@@ -110,6 +196,112 @@ impl Store {
             params![now(), kind, cached as i64, ok as i64],
         )?;
         Ok(())
+    }
+
+    pub fn today_completed(&self) -> rusqlite::Result<i64> {
+        self.conn.query_row("SELECT COALESCE(SUM(completed),0) FROM sessions WHERE started>=?1", params![day_start(0)], |r| r.get(0))
+    }
+
+    /// The given round, or the latest finished one.
+    pub fn review(&self, id: Option<i64>, sample_secs: u32) -> rusqlite::Result<Option<Review>> {
+        let row = self.conn.query_row(
+            "SELECT id, task, started, COALESCE(ended, ?2), planned_secs, focus_secs, completed FROM sessions
+             WHERE (?1 IS NULL AND ended IS NOT NULL) OR id=?1 ORDER BY started DESC LIMIT 1",
+            params![id, now()],
+            |r| {
+                Ok((
+                    r.get::<_, i64>(0)?,
+                    r.get::<_, String>(1)?,
+                    r.get::<_, i64>(2)?,
+                    r.get::<_, i64>(3)?,
+                    r.get::<_, i64>(4)?,
+                    r.get::<_, i64>(5)?,
+                    r.get::<_, i64>(6)? != 0,
+                ))
+            },
+        );
+        let (id, task, started, ended, planned_secs, focus_secs, completed) = match row {
+            Ok(r) => r,
+            Err(rusqlite::Error::QueryReturnedNoRows) => return Ok(None),
+            Err(e) => return Err(e),
+        };
+        let mut q = self.conn.prepare(
+            "SELECT at, stage, result, COALESCE(app,''), COALESCE(title,''), url, COALESCE(reason,'') FROM events
+             WHERE session_id=?1 ORDER BY at, id",
+        )?;
+        let evs = q
+            .query_map(params![id], |r| {
+                Ok(Ev { at: r.get(0)?, stage: r.get(1)?, result: r.get(2)?, app: r.get(3)?, title: r.get(4)?, url: r.get(5)?, reason: r.get(6)? })
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let cap = sample_secs as i64 * 3 + 3;
+        let (segments, durs) = build_segments(started, ended, &evs, cap);
+        let total = |k: &str| segments.iter().filter(|s| s.kind == k).map(|s| s.to - s.from).sum::<i64>();
+
+        let mut distractions: Vec<Distraction> = Vec::new();
+        let mut in_run = false;
+        for (i, covered) in durs {
+            let e = &evs[i];
+            if e.result != "distracted" {
+                in_run = false;
+                continue;
+            }
+            match distractions.last_mut() {
+                Some(d) if in_run => d.secs += covered,
+                _ => distractions.push(Distraction {
+                    at: e.at,
+                    secs: covered,
+                    app: e.app.clone(),
+                    title: e.title.clone(),
+                    url: e.url.clone(),
+                    stage: e.stage.clone(),
+                    reason: e.reason.clone(),
+                }),
+            }
+            in_run = true;
+        }
+
+        let mut stages = StageCounts::default();
+        for e in evs.iter().filter(|e| e.result == "focused" || e.result == "distracted") {
+            match e.stage.as_str() {
+                "rules" => stages.rules += 1,
+                "text" => stages.text += 1,
+                "vision" => stages.vision += 1,
+                _ => {}
+            }
+        }
+        let day = chrono::DateTime::from_timestamp(started, 0)
+            .map(|t| t.with_timezone(&chrono::Local).date_naive())
+            .and_then(|d| d.and_hms_opt(0, 0, 0))
+            .and_then(|d| d.and_local_timezone(chrono::Local).earliest())
+            .map(|t| t.timestamp())
+            .unwrap_or(0);
+        // Same count as the popover's "今天第 N 个": finished rounds before this one, plus one.
+        let before: i64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM sessions WHERE started>=?1 AND started<?2 AND completed=1",
+            params![day, started],
+            |r| r.get(0),
+        )?;
+        let ordinal = before + 1;
+        let alerts: i64 = self.conn.query_row("SELECT COUNT(*) FROM alerts WHERE session_id=?1", params![id], |r| r.get(0))?;
+        let distract_secs = total("distract");
+        Ok(Some(Review {
+            id,
+            task,
+            started,
+            ended,
+            planned_secs,
+            focus_secs: (focus_secs - distract_secs).max(0),
+            distract_secs,
+            away_secs: total("away"),
+            completed,
+            ordinal,
+            alerts,
+            segments,
+            distractions,
+            stages,
+        }))
     }
 
     pub fn stats(&self) -> rusqlite::Result<Stats> {
@@ -186,6 +378,23 @@ mod tests {
         assert_eq!(stats.stages.rules, 1);
         assert_eq!(stats.recent_alerts[0].task, "写论文");
         assert_eq!(stats.week.len(), 7);
+        let r = st.review(None, 4).unwrap().unwrap();
+        assert_eq!(r.task, "写论文");
+        assert_eq!(r.alerts, 1);
+        assert_eq!(r.stages.rules, 1);
+        assert_eq!(r.distractions.len(), 1);
         let _ = std::fs::remove_dir_all(dir);
+    }
+
+    fn ev(at: i64, result: &str) -> Ev {
+        Ev { at, stage: "rules".into(), result: result.into(), app: "a".into(), title: String::new(), url: None, reason: String::new() }
+    }
+
+    #[test]
+    fn segments_merge_and_gaps_become_away() {
+        let evs = [ev(4, "focused"), ev(8, "focused"), ev(12, "distracted"), ev(16, "none"), ev(60, "focused")];
+        let (segs, _) = build_segments(0, 64, &evs, 15);
+        let kinds: Vec<_> = segs.iter().map(|s| (s.kind, s.from, s.to)).collect();
+        assert_eq!(kinds, vec![("focus", 0, 12), ("distract", 12, 31), ("away", 31, 60), ("focus", 60, 64)]);
     }
 }

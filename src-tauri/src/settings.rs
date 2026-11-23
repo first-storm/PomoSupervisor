@@ -75,6 +75,9 @@ pub struct Settings {
     pub phash_threshold: u32,
     pub streak: u32,
     pub sound: bool,
+    /// When the person comes back from being away, resume on our own instead of waiting for a click.
+    pub auto_resume: bool,
+    pub text_enabled: bool,
     pub vision_enabled: bool,
     pub rules: Rules,
     pub text_model: Option<ProviderConfig>,
@@ -94,6 +97,8 @@ impl Default for Settings {
             phash_threshold: 6,
             streak: 3,
             sound: true,
+            auto_resume: true,
+            text_enabled: true,
             vision_enabled: false,
             rules: Rules::default(),
             text_model: None,

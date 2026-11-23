@@ -4013,6 +4013,8 @@ dependencies = [
  "image_hasher",
  "keyring",
  "lru",
+ "objc2",
+ "objc2-app-kit",
  "rig-core",
  "rusqlite",
  "serde",
