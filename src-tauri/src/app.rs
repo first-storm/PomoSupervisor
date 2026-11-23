@@ -1,4 +1,5 @@
 //! App state, the 1-second loop, and one sample's trip through the decision chain.
+use crate::ax::{self, AxInfo};
 use crate::llm::{self, ChatModel, Judgement};
 use crate::pipeline::{Outcome, Stage, StageResult, Verdict, run_chain};
 use crate::sampler::{self, Sample};
@@ -180,6 +181,9 @@ impl AppState {
     /// `minutes`: this round's length (the setting when None). `allow`: this round's extra allow list.
     pub fn start_focus(&self, task: String, minutes: Option<u32>, allow: Vec<String>) {
         let s = self.settings();
+        if s.ax_enabled && !ax::trusted() && !AX_ASKED.swap(true, Ordering::Relaxed) {
+            ax::request();
+        }
         let secs = minutes.unwrap_or(s.focus_min).clamp(1, 180) * 60;
         let mut core = self.core.lock().unwrap();
         self.close_session(&mut core, false);
@@ -407,12 +411,33 @@ fn on_phase_end(app: &AppHandle, state: &AppState, phase: Phase) {
     }
 }
 
-fn cache_key(task: &str, s: &Sample) -> String {
-    format!("{task}\u{1}{}\u{1}{}\u{1}{}", s.app, s.title, s.url.as_deref().unwrap_or(""))
+/// Window text helps where titles say little (chat apps, Electron), so it is part of the key, digits aside.
+fn cache_key(task: &str, s: &Sample, ax: Option<&AxInfo>) -> String {
+    let ax = ax.map(ax::fingerprint).unwrap_or_default();
+    format!("{task}\u{1}{}\u{1}{}\u{1}{}\u{1}{ax}", s.app, s.title, s.url.as_deref().unwrap_or(""))
+}
+
+/// Asks for Accessibility once per launch, on the first focus round that needs it.
+static AX_ASKED: AtomicBool = AtomicBool::new(false);
+
+/// The frontmost window's Accessibility text, read at most once per sample and only when a model needs it.
+type AxCell = Arc<tokio::sync::OnceCell<Option<AxInfo>>>;
+
+async fn ax_for(cell: &AxCell, s: &Sample, settings: &Settings) -> Option<AxInfo> {
+    cell.get_or_init(|| async {
+        if !settings.ax_enabled || s.pid == std::process::id() as u64 {
+            return None;
+        }
+        let (pid, name) = (s.pid as i32, s.bundle_name.clone().unwrap_or_else(|| s.app.clone()));
+        tokio::task::spawn_blocking(move || ax::read(pid, &name)).await.ok().flatten()
+    })
+    .await
+    .clone()
 }
 
 fn build_stages(state: &Arc<AppState>, s: &Arc<Sample>, settings: &Arc<Settings>, task: &Arc<String>) -> Vec<Stage> {
     let mut stages: Vec<Stage> = Vec::new();
+    let ax_cell: AxCell = Arc::default();
 
     // 1. Idle for longer than the threshold: the person has left.
     {
@@ -439,9 +464,9 @@ fn build_stages(state: &Arc<AppState>, s: &Arc<Sample>, settings: &Arc<Settings>
         }));
     }
 
-    // 3. Text model: title + URL + task. Only a confident answer concludes.
+    // 3. Text model: title + URL + window text + task. Only a confident answer concludes.
     {
-        let (state, s, settings, task) = (state.clone(), s.clone(), settings.clone(), task.clone());
+        let (state, s, settings, task, ax_cell) = (state.clone(), s.clone(), settings.clone(), task.clone(), ax_cell.clone());
         stages.push(Box::new(move || {
             Box::pin(async move {
                 if !settings.text_enabled {
@@ -449,11 +474,12 @@ fn build_stages(state: &Arc<AppState>, s: &Arc<Sample>, settings: &Arc<Settings>
                 }
                 let model = state.models.read().unwrap().text.clone();
                 let Some(model) = model else { return StageResult::Pass(None) };
-                let key = cache_key(&task, &s);
+                let ax = ax_for(&ax_cell, &s, &settings).await;
+                let key = cache_key(&task, &s, ax.as_ref());
                 let cached = state.core.lock().unwrap().text_cache.get(&key).cloned();
                 let (j, was_cached) = match cached {
                     Some(j) => (j, true),
-                    None => match llm::judge_text(&model, &task, &s).await {
+                    None => match llm::judge_text(&model, &task, &s, ax.as_ref()).await {
                         Ok(j) => {
                             state.core.lock().unwrap().text_cache.put(key, j.clone());
                             (j, false)
@@ -481,7 +507,7 @@ fn build_stages(state: &Arc<AppState>, s: &Arc<Sample>, settings: &Arc<Settings>
 
     // 4. Screenshot to the vision model, de-duplicated by pHash.
     {
-        let (state, s, settings, task) = (state.clone(), s.clone(), settings.clone(), task.clone());
+        let (state, s, settings, task, ax_cell) = (state.clone(), s.clone(), settings.clone(), task.clone(), ax_cell.clone());
         stages.push(Box::new(move || {
             Box::pin(async move {
                 if !settings.vision_enabled {
@@ -505,7 +531,7 @@ fn build_stages(state: &Arc<AppState>, s: &Arc<Sample>, settings: &Arc<Settings>
                     .map(|(_, j)| j.clone());
                 let (j, was_cached) = match reuse {
                     Some(j) => (j, true),
-                    None => match llm::judge_image(&model, &task, &s, shot.jpeg_b64).await {
+                    None => match llm::judge_image(&model, &task, &s, ax_for(&ax_cell, &s, &settings).await.as_ref(), shot.jpeg_b64).await {
                         Ok(j) => {
                             state.core.lock().unwrap().last_vision = Some((shot.hash, j.clone()));
                             (j, false)

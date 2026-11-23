@@ -23,7 +23,8 @@ cd src-tauri && cargo test
 ## 权限（macOS）
 
 - **屏幕录制**：读取其他应用的窗口标题、截图。没有它只能按应用名判断。
-- **自动化**：读取 Safari / Chrome / Arc / Edge / Brave 当前标签页的 URL（每个浏览器首次会单独弹窗）。Firefox 不支持，只按标题判断。
+- **自动化**：读取 Safari / Chrome / Arc / Edge / Brave 当前标签页的 URL（每个浏览器首次会单独弹窗）。
+- **辅助功能**（默认开启，可在设置 → 隐私关掉）：规则没命中时读取前台窗口的焦点控件和部分文字（最多约 800 字，不读密码框，不保存）交给模型；Firefox 等 AppleScript 拿不到网址的浏览器也从这里补上 URL。
 - `pnpm tauri dev` 时权限授予的是启动它的终端；打包后的 .app 需要单独授权。
 
 ## 模型

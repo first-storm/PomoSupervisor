@@ -79,6 +79,8 @@ pub struct Settings {
     pub auto_resume: bool,
     pub text_enabled: bool,
     pub vision_enabled: bool,
+    /// Read the frontmost window's text through the Accessibility API for the models.
+    pub ax_enabled: bool,
     pub rules: Rules,
     pub text_model: Option<ProviderConfig>,
     pub vision_model: Option<ProviderConfig>,
@@ -100,6 +102,7 @@ impl Default for Settings {
             auto_resume: true,
             text_enabled: true,
             vision_enabled: false,
+            ax_enabled: true,
             rules: Rules::default(),
             text_model: None,
             vision_model: None,

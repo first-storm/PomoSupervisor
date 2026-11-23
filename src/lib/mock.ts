@@ -109,6 +109,7 @@ const settings: Settings = {
   auto_resume: true,
   text_enabled: true,
   vision_enabled: true,
+  ax_enabled: true,
   rules: {
     block_apps: ["Steam", "Netflix", "哔哩哔哩", "抖音"],
     allow_apps: ["Xcode", "Terminal", "Visual Studio Code"],
@@ -130,7 +131,7 @@ const answers: Record<string, unknown> = {
   get_settings: settings,
   save_settings: settings,
   model_status: { text_key: true, vision_key: false, text_ready: true, vision_ready: false, text_error: null, vision_error: null },
-  check_permissions: { screen_recording: true },
+  check_permissions: { screen_recording: true, accessibility: true },
   mark_as_work: "bilibili.com",
 };
 

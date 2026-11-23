@@ -142,7 +142,7 @@ function ChainPane({ s, update, go }: { s: Settings; update: Update; go: (p: Pan
             编辑名单…
           </button>
         </Row>
-        <Row step={4} name="文本模型" tag="model" desc="规则没命中时，把标题、URL 和任务描述发给模型">
+        <Row step={4} name="文本模型" tag="model" desc="规则没命中时，把标题、URL、窗口文字和任务描述发给模型">
           <button className="select" onClick={() => go("models")}>
             {modelName(s.text_model)}
           </button>
@@ -367,9 +367,14 @@ function ModelsPane({ s, update }: { s: Settings; update: Update }) {
   );
 }
 
-function PrivacyPane() {
+function PrivacyPane({ s, update }: { s: Settings; update: Update }) {
   const [granted, setGranted] = useState<boolean | null>(null);
-  const check = () => api.checkPermissions().then((p) => setGranted(p.screen_recording));
+  const [axGranted, setAxGranted] = useState<boolean | null>(null);
+  const check = () =>
+    api.checkPermissions().then((p) => {
+      setGranted(p.screen_recording);
+      setAxGranted(p.accessibility);
+    });
   useEffect(() => {
     check();
     const t = setInterval(check, 4000);
@@ -396,12 +401,30 @@ function PrivacyPane() {
             </button>
           )}
         </Row>
-        <Row name="自动化" desc="读取 Safari、Chrome、Arc、Edge、Brave 当前标签页的 URL，每个浏览器首次会单独弹窗。Firefox 不支持，只按标题判断。">
+        <Row
+          name="辅助功能"
+          desc="规则没命中时，读取前台窗口里的部分文字和焦点控件交给模型，也能补上 Firefox 等浏览器的网址。不读密码框，不保存。"
+        >
+          {s.ax_enabled && <span className={axGranted ? "status ok" : "status no"}>{axGranted == null ? "" : axGranted ? "已授权" : "未授权"}</span>}
+          {s.ax_enabled && !axGranted && (
+            <button
+              className="btn small"
+              onClick={async () => {
+                await api.requestAccessibility();
+                await api.openPrivacy("accessibility");
+              }}
+            >
+              去授权
+            </button>
+          )}
+          <input type="checkbox" className="switch" aria-label="读取窗口文字" checked={s.ax_enabled} onChange={(e) => update({ ax_enabled: e.target.checked })} />
+        </Row>
+        <Row name="自动化" desc="读取 Safari、Chrome、Arc、Edge、Brave 当前标签页的 URL，每个浏览器首次会单独弹窗。Firefox 的网址由辅助功能读取。">
           <button className="btn small" onClick={() => api.openPrivacy("automation")}>
             打开设置
           </button>
         </Row>
-        <Row name="发给文本模型" desc="前台 App 名、窗口标题、URL 和这一轮的任务描述。" />
+        <Row name="发给文本模型" desc="前台 App 名、窗口标题、URL、这一轮的任务描述；开启辅助功能时，还有焦点控件和窗口里的部分文字（最多约 800 字）。" />
         <Row name="发给视觉模型" desc="前台窗口所在屏幕的截图（缩小后的 JPEG），以及同样的文字信息。画面没变时不重复发送。" />
         <Row name="本地数据" desc="设置和统计存在 ~/Library/Application Support/dev.aoba.pomosupervisor/，只在这台 Mac 上。" />
       </div>
@@ -484,7 +507,7 @@ export default function SettingsWindow() {
         {s && pane === "chain" && <ChainPane s={s} update={update} go={setPane} />}
         {s && pane === "lists" && <ListsPane s={s} update={update} />}
         {s && pane === "models" && <ModelsPane s={s} update={update} />}
-        {pane === "privacy" && <PrivacyPane />}
+        {s && pane === "privacy" && <PrivacyPane s={s} update={update} />}
       </main>
     </div>
   );

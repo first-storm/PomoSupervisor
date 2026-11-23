@@ -24,7 +24,29 @@ function More() {
   );
 }
 
-function PermissionBanner() {
+/** Permissions still missing: screen recording, and Accessibility while window text is turned on. */
+type Missing = { screen: boolean; ax: boolean };
+
+function PermissionBanner({ missing }: { missing: Missing }) {
+  if (!missing.screen) {
+    return (
+      <div className="perm">
+        <b>需要“辅助功能”权限</b>
+        <p>用来读取窗口里的文字，帮模型判断标题看不出来的情况，也能补上 Firefox 的网址。不想用可以在设置 → 隐私里关掉。</p>
+        <div className="btn-row">
+          <button
+            className="btn small"
+            onClick={async () => {
+              await api.requestAccessibility();
+              await api.openPrivacy("accessibility");
+            }}
+          >
+            去授权
+          </button>
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="perm">
       <b>需要“屏幕录制”权限</b>
@@ -39,6 +61,11 @@ function PermissionBanner() {
         >
           去授权
         </button>
+        {missing.ax && (
+          <button className="btn small" onClick={() => api.openPrivacy("accessibility")}>
+            辅助功能
+          </button>
+        )}
         <button className="btn small" onClick={() => api.openPrivacy("automation")}>
           浏览器网址
         </button>
@@ -47,7 +74,7 @@ function PermissionBanner() {
   );
 }
 
-function StartCard({ view, completed, granted }: { view: TimerView; completed: number; granted: boolean }) {
+function StartCard({ view, completed, missing }: { view: TimerView; completed: number; missing: Missing }) {
   const [task, setTask] = useState(view.task);
   const [minutes, setMinutes] = useState(Math.round(view.focus_secs / 60));
   const [allow, setAllow] = useState<string[]>(view.round_allow);
@@ -67,7 +94,7 @@ function StartCard({ view, completed, granted }: { view: TimerView; completed: n
         <div className="title">这一轮做什么？</div>
         <More />
       </div>
-      {!granted && <PermissionBanner />}
+      {(missing.screen || missing.ax) && <PermissionBanner missing={missing} />}
       <div className="field-col">
         <label className="label" htmlFor="task">
           任务描述
@@ -391,12 +418,14 @@ export default function Popover() {
   const [mode, setMode] = useState<PopoverMode>("normal");
   const [recent, setRecent] = useState<VerdictEvent[]>([]);
   const [completed, setCompleted] = useState(0);
-  const [granted, setGranted] = useState(true);
+  const [missing, setMissing] = useState<Missing>({ screen: false, ax: false });
   const card = useRef<HTMLDivElement>(null);
 
   const refresh = () => {
     api.todayCompleted().then(setCompleted);
-    api.checkPermissions().then((p) => setGranted(p.screen_recording));
+    Promise.all([api.checkPermissions(), api.getSettings()]).then(([p, s]) =>
+      setMissing({ screen: !p.screen_recording, ax: s.ax_enabled && !p.accessibility }),
+    );
   };
 
   useEffect(() => {
@@ -440,7 +469,7 @@ export default function Popover() {
 
   let body: React.ReactNode;
   if (nudge) body = <NudgeCard view={view} verdict={verdict} recent={recent} onDone={() => setMode("normal")} />;
-  else if (view.phase === "idle") body = <StartCard key="start" view={view} completed={completed} granted={granted} />;
+  else if (view.phase === "idle") body = <StartCard key="start" view={view} completed={completed} missing={missing} />;
   else if (view.phase !== "focus") body = <BreakCard view={view} completed={completed} />;
   else if (view.paused) body = <PausedCard view={view} completed={completed} />;
   else body = <FocusCard view={view} verdict={verdict} completed={completed} />;

@@ -207,6 +207,7 @@ unsafe extern "C" {
 #[derive(Serialize)]
 pub struct Permissions {
     pub screen_recording: bool,
+    pub accessibility: bool,
 }
 
 #[tauri::command]
@@ -215,7 +216,12 @@ pub fn check_permissions() -> Permissions {
     let screen_recording = unsafe { CGPreflightScreenCaptureAccess() };
     #[cfg(not(target_os = "macos"))]
     let screen_recording = true;
-    Permissions { screen_recording }
+    Permissions { screen_recording, accessibility: crate::ax::trusted() }
+}
+
+#[tauri::command]
+pub fn request_accessibility() -> bool {
+    crate::ax::request()
 }
 
 #[tauri::command]
@@ -231,6 +237,7 @@ pub fn open_privacy(pane: String) -> Result<(), String> {
     let anchor = match pane.as_str() {
         "screen" => "Privacy_ScreenCapture",
         "automation" => "Privacy_Automation",
+        "accessibility" => "Privacy_Accessibility",
         _ => return Err("未知设置页".into()),
     };
     std::process::Command::new("open")

@@ -41,6 +41,8 @@ futures = "0.3.34"
 [target.'cfg(target_os = "macos")'.dependencies]
 # Activate the app when the popover opens from the tray, so clicking elsewhere hides it.
 objc2 = "0.6"
+# Accessibility API: window text for the text model.
+core-foundation = "0.10"
 objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSApplication", "NSResponder"] }
 
 

@@ -73,6 +73,7 @@ export interface Settings {
   auto_resume: boolean;
   text_enabled: boolean;
   vision_enabled: boolean;
+  ax_enabled: boolean;
   rules: Rules;
   text_model: ProviderConfig | null;
   vision_model: ProviderConfig | null;
@@ -166,9 +167,10 @@ export const api = {
   modelStatus: () => invoke<ModelStatus>("model_status"),
   setApiKey: (slot: Slot, key: string) => invoke<void>("set_api_key", { slot, key }),
   testProvider: (slot: Slot) => invoke<string>("test_provider", { slot }),
-  checkPermissions: () => invoke<{ screen_recording: boolean }>("check_permissions"),
+  checkPermissions: () => invoke<{ screen_recording: boolean; accessibility: boolean }>("check_permissions"),
   requestScreenRecording: () => invoke<boolean>("request_screen_recording"),
-  openPrivacy: (pane: "screen" | "automation") => invoke<void>("open_privacy", { pane }),
+  requestAccessibility: () => invoke<boolean>("request_accessibility"),
+  openPrivacy: (pane: "screen" | "automation" | "accessibility") => invoke<void>("open_privacy", { pane }),
 };
 
 const on =

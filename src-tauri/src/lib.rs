@@ -1,4 +1,5 @@
 mod app;
+pub mod ax;
 mod commands;
 mod llm;
 mod pipeline;
@@ -120,6 +121,7 @@ pub fn run() {
             commands::get_stats,
             commands::check_permissions,
             commands::request_screen_recording,
+            commands::request_accessibility,
             commands::open_privacy,
         ])
         .run(tauri::generate_context!())
