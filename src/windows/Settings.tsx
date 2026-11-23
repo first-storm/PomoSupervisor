@@ -212,7 +212,7 @@ function ListsPane({ s, update }: { s: Settings; update: Update }) {
         <ListBox label="标题黑名单关键词" value={s.rules.block_keywords} onChange={set("block_keywords")} />
         <ListBox label="标题白名单关键词" value={s.rules.allow_keywords} onChange={set("allow_keywords")} />
       </div>
-      <div className="hint">网站写域名即可，如 bilibili.com，会同时匹配它的子域名。开始专注时加的「本轮额外允许」只对那一轮有效，且优先于这里的黑名单。</div>
+      <div className="hint">网站写域名即可，如 bilibili.com，会同时匹配它的子域名。开始专注时加的「额外允许」只跟着当时的任务走（下一轮沿用，可随时移除），且优先于这里的黑名单。</div>
     </>
   );
 }
@@ -478,9 +478,19 @@ export default function SettingsWindow() {
         dirty.current = false;
         setS(x);
       });
+    // Another window may have asked for a particular pane (see openSettings).
+    const jump = () => {
+      const want = localStorage.getItem("settings.pane");
+      localStorage.removeItem("settings.pane");
+      if (want && PANES.some(([id]) => id === want)) setPane(want as PaneId);
+    };
     load();
+    jump();
     const subs = [
-      onWindowShown(load),
+      onWindowShown(() => {
+        load();
+        jump();
+      }),
       // Closing: commit the field being edited (its blur saves it), flush, then let the window go.
       onWindowClosing(async () => {
         (document.activeElement as HTMLElement | null)?.blur();

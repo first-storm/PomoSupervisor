@@ -172,7 +172,7 @@ export default function ReviewWindow() {
   return (
     <div className="win">
       <div className="titlebar" data-tauri-drag-region>
-        本轮回顾
+        专注回顾
       </div>
       <div className="win-body">
         {err && <div className="review msg bad">{err}</div>}

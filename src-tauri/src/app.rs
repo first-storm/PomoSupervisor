@@ -36,6 +36,14 @@ pub struct Core {
     pub distracted_ticks: Vec<u32>,
     /// Seconds left of a "rest a few minutes" pause taken during focus.
     pub rest_left: Option<u32>,
+    /// The distraction reminder is on screen, until a button is clicked or a sample comes back focused.
+    pub nudging: bool,
+    /// The site or app the reminder is about.
+    pub nudge_target: Option<String>,
+    /// A break just ran out and nothing has been started since.
+    pub break_over: bool,
+    /// Length of the last focus round started, to offer the same again.
+    pub last_focus_secs: u32,
 }
 
 #[derive(Default)]
@@ -77,6 +85,10 @@ pub struct TimerView {
     pub short_break_min: u32,
     pub round_allow: Vec<String>,
     pub distracted_ticks: Vec<u32>,
+    pub nudging: bool,
+    pub break_over: bool,
+    /// Minutes of the last focus round started (the setting before any round).
+    pub last_focus_min: u32,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -93,6 +105,9 @@ pub struct VerdictEvent {
     pub app: String,
     pub title: String,
     pub url: Option<String>,
+    /// What "this is part of the task" would allow: the site, else the app. None for a
+    /// browser whose URL we couldn't read, where the only thing to allow is the whole browser.
+    pub allow_target: Option<String>,
     pub streak: u32,
     pub threshold: u32,
     pub alerted: bool,
@@ -113,6 +128,10 @@ impl AppState {
                 recent: VecDeque::new(),
                 distracted_ticks: Vec::new(),
                 rest_left: None,
+                nudging: false,
+                nudge_target: None,
+                break_over: false,
+                last_focus_secs: 0,
             }),
             settings: RwLock::new(settings),
             settings_path,
@@ -173,6 +192,9 @@ impl AppState {
             short_break_min: s.short_break_min,
             round_allow: core.round_allow.clone(),
             distracted_ticks: core.distracted_ticks.clone(),
+            nudging: core.nudging,
+            break_over: core.break_over,
+            last_focus_min: if core.last_focus_secs > 0 { core.last_focus_secs / 60 } else { s.focus_min },
         }
     }
 
@@ -199,6 +221,9 @@ impl AppState {
         core.recent.clear();
         core.distracted_ticks.clear();
         core.rest_left = None;
+        core.nudging = false;
+        core.break_over = false;
+        core.last_focus_secs = secs;
         core.session_id = self.store.lock().unwrap().start_session(&task, secs).ok();
         self.since_sample.store(0, Ordering::Relaxed);
     }
@@ -212,6 +237,8 @@ impl AppState {
         let mins = if phase == Phase::LongBreak { s.long_break_min } else { s.short_break_min };
         core.timer.start(phase, mins * 60);
         core.rest_left = None;
+        core.nudging = false;
+        core.break_over = false;
     }
 
     pub fn stop(&self) {
@@ -221,6 +248,8 @@ impl AppState {
         core.timer.pending_break = None;
         core.smoother.reset();
         core.rest_left = None;
+        core.nudging = false;
+        core.break_over = false;
     }
 
     pub fn set_user_pause(&self, paused: bool) {
@@ -230,6 +259,7 @@ impl AppState {
         }
         core.timer.pause = paused.then_some(PauseReason::User);
         core.rest_left = None;
+        core.nudging = false;
     }
 
     /// Pause the focus round for a few minutes, then carry on by itself.
@@ -241,6 +271,13 @@ impl AppState {
         core.timer.pause = Some(PauseReason::User);
         core.rest_left = Some(minutes.clamp(1, 60) * 60);
         core.smoother.reset();
+        core.nudging = false;
+    }
+
+    /// "Back to the task": take the reminder down. The smoother keeps its quiet period, so
+    /// there is time to actually get back before it can fire again.
+    pub fn dismiss_nudge(&self) {
+        self.core.lock().unwrap().nudging = false;
     }
 
     pub fn allow_for_round(&self, item: &str) {
@@ -252,6 +289,7 @@ impl AppState {
             core.last_vision = None;
         }
         core.smoother.reset();
+        core.nudging = false;
     }
 
     /// Move `target` (an app or a site) onto the allow list for good.
@@ -338,8 +376,9 @@ pub fn spawn_loop(app: AppHandle) {
         loop {
             iv.tick().await;
             let state = app.state::<Arc<AppState>>().inner().clone();
-            let ended = {
+            let (ended, rest_done) = {
                 let mut core = state.core.lock().unwrap();
+                let mut rest_done = false;
                 // A timed rest during focus counts down, then the round carries on.
                 if let Some(left) = core.rest_left {
                     if core.timer.pause != Some(PauseReason::User) {
@@ -347,12 +386,19 @@ pub fn spawn_loop(app: AppHandle) {
                     } else if left <= 1 {
                         core.rest_left = None;
                         core.timer.pause = None;
+                        rest_done = true;
                     } else {
                         core.rest_left = Some(left - 1);
                     }
                 }
-                core.timer.tick()
+                (core.timer.tick(), rest_done)
             };
+            if rest_done {
+                notify(&app, "暂停结束", "计时继续了，回到任务上吧。");
+                if state.settings.read().unwrap().sound {
+                    play("Glass");
+                }
+            }
             if let Some(phase) = ended {
                 on_phase_end(&app, &state, phase);
             }
@@ -396,13 +442,22 @@ fn on_phase_end(app: &AppHandle, state: &AppState, phase: Phase) {
                 core.timer.stop();
                 core.timer.pending_break = Some(next);
                 core.smoother.reset();
+                core.nudging = false;
             }
-            notify(app, "番茄完成", "看看这一轮的回顾，再决定休息还是继续。");
-            crate::windows::open(app, "review");
+            notify(app, "番茄完成", "休息一下，或者接着再来一轮。");
+            // The person is probably mid-keystroke: show the card without taking focus.
+            emit_tick(app, state);
+            crate::windows::show_popover(app, "passive");
         }
         Phase::ShortBreak | Phase::LongBreak => {
-            state.core.lock().unwrap().timer.stop();
+            {
+                let mut core = state.core.lock().unwrap();
+                core.timer.stop();
+                core.break_over = true;
+            }
             notify(app, "休息结束", "准备好就开始下一个番茄。");
+            emit_tick(app, state);
+            crate::windows::show_popover(app, "passive");
         }
         Phase::Idle => {}
     }
@@ -582,7 +637,9 @@ async fn run_sample(app: &AppHandle, state: &Arc<AppState>) {
     };
 
     // The round may have ended or been paused by the user while we waited on a model.
-    let (signal, alerted, streak, session) = {
+    let shown_app = sample.bundle_name.clone().unwrap_or(sample.app.clone());
+    let target = crate::rules::target_of(&shown_app, sample.url.as_deref());
+    let (signal, alerted, recovered, streak, session) = {
         let mut core = state.core.lock().unwrap();
         if core.timer.phase != Phase::Focus || core.timer.pause == Some(PauseReason::User) {
             return;
@@ -590,6 +647,7 @@ async fn run_sample(app: &AppHandle, state: &Arc<AppState>) {
         match outcome {
             Outcome::Away => {
                 core.timer.pause.get_or_insert(PauseReason::Away);
+                core.nudging = false;
             }
             // Back from being away: carry on, or hold until the person clicks to continue.
             _ if core.timer.pause == Some(PauseReason::Away) => {
@@ -609,8 +667,21 @@ async fn run_sample(app: &AppHandle, state: &Arc<AppState>) {
             Outcome::Decided(_) => Signal::Distracted,
             _ => Signal::Neutral,
         };
-        let alerted = core.smoother.feed(signal, settings.streak);
-        (signal, alerted, core.smoother.streak, core.session_id)
+        let alerted = core.smoother.feed(signal, settings.streak, store::now());
+        if alerted {
+            core.nudging = true;
+            core.nudge_target = Some(target.clone());
+        }
+        // The reminder has done its job once the person is back on the task, or (when nothing
+        // can tell, as with no model set up) has at least left what it was about. Away counts
+        // too: nobody is there to read it.
+        let left = match signal {
+            Signal::Focused => true,
+            Signal::Distracted => false,
+            Signal::Neutral => outcome == Outcome::Away || (!own && core.nudge_target.as_deref() != Some(target.as_str())),
+        };
+        let recovered = !alerted && left && std::mem::take(&mut core.nudging);
+        (signal, alerted, recovered, core.smoother.streak, core.session_id)
     };
 
     let (stage, result, reason, confidence, cached) = match &outcome {
@@ -637,6 +708,8 @@ async fn run_sample(app: &AppHandle, state: &Arc<AppState>) {
         play("Sosumi");
     }
 
+    let allow_target = crate::rules::allow_target(&shown_app, sample.url.as_deref())
+        .filter(|_| sample.url.is_some() || !crate::rules::is_browser(&sample.app));
     let ev = VerdictEvent {
         at: store::now(),
         stage,
@@ -645,17 +718,19 @@ async fn run_sample(app: &AppHandle, state: &Arc<AppState>) {
         confidence,
         cached,
         notes,
-        app: sample.bundle_name.clone().unwrap_or(sample.app.clone()),
+        app: shown_app,
         title: sample.title.clone(),
         url: sample.url.clone(),
+        allow_target,
         streak,
         threshold: settings.streak,
         alerted,
     };
     {
         let mut core = state.core.lock().unwrap();
-        core.last = Some(ev.clone());
+        // Our own popover in front says nothing about the work: keep showing the last real sample.
         if !own {
+            core.last = Some(ev.clone());
             core.recent.push_back(ev.clone());
             while core.recent.len() > 20 {
                 core.recent.pop_front();
@@ -666,5 +741,7 @@ async fn run_sample(app: &AppHandle, state: &Arc<AppState>) {
     emit_tick(app, state);
     if alerted {
         crate::windows::show_popover(app, "nudge");
+    } else if recovered {
+        crate::windows::hide_passive(app);
     }
 }

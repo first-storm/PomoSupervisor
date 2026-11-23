@@ -23,6 +23,11 @@ export interface TimerView {
   short_break_min: number;
   round_allow: string[];
   distracted_ticks: number[];
+  /** The distraction reminder is up. */
+  nudging: boolean;
+  /** A break just ran out and nothing has been started since. */
+  break_over: boolean;
+  last_focus_min: number;
 }
 
 export type Stage = "idle" | "rules" | "text" | "vision" | "none" | "self";
@@ -38,6 +43,8 @@ export interface VerdictEvent {
   app: string;
   title: string;
   url: string | null;
+  /** What "this is part of the task" would allow; null when that would be a whole browser. */
+  allow_target: string | null;
   streak: number;
   threshold: number;
   alerted: boolean;
@@ -128,7 +135,7 @@ export interface Review {
 }
 
 export type Slot = "text" | "vision";
-export type PopoverMode = "normal" | "nudge";
+export type PopoverMode = "normal" | "nudge" | "passive";
 
 type Invoke = <T>(cmd: string, args?: Record<string, unknown>) => Promise<T>;
 type Listen = <T>(event: string, f: (e: { payload: T }) => void) => Promise<UnlistenFn>;
@@ -153,6 +160,8 @@ export const api = {
   stop: () => invoke<TimerView>("stop"),
   rest: (minutes: number) => invoke<TimerView>("rest", { minutes }),
   allowForRound: (item: string) => invoke<TimerView>("allow_for_round", { item }),
+  dismissNudge: () => invoke<TimerView>("dismiss_nudge"),
+  focusPopover: () => invoke<void>("focus_popover"),
   markAsWork: (appName: string, url: string | null) => invoke<string>("mark_as_work", { appName, url }),
   setAutoResume: (on: boolean) => invoke<TimerView>("set_auto_resume", { on }),
   recentVerdicts: () => invoke<VerdictEvent[]>("recent_verdicts"),
@@ -210,5 +219,11 @@ export const hostOf = (url: string | null) => {
 
 /** What to call the window a sample saw: its site, else its app. */
 export const targetOf = (v: { app: string; url: string | null }) => hostOf(v.url) ?? v.app;
+
+/** Open Settings on a given pane (the windows share localStorage). */
+export const openSettings = (pane?: string) => {
+  if (pane) localStorage.setItem("settings.pane", pane);
+  return api.openWindow("settings");
+};
 
 export const errText = (e: unknown) => (typeof e === "string" ? e : e instanceof Error ? e.message : JSON.stringify(e));

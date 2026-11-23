@@ -70,9 +70,9 @@ fn activate(app: &AppHandle) {
     });
 }
 
-/// `mode`: "normal" (from the tray: takes focus, hides on blur), or "nudge" for the
-/// distraction reminder, which shows over whatever is in front without taking the keyboard
-/// and stays until one of its buttons is clicked.
+/// `mode`: "normal" (from the tray: takes focus, hides on blur), or anything else ("nudge",
+/// "passive") for a card the app brings up by itself: the distraction reminder, a finished
+/// round, a finished break. Those show over whatever is in front without taking the keyboard.
 pub fn show_popover(app: &AppHandle, mode: &str) {
     let Some(w) = popover(app) else { return };
     let _ = w.emit_to("main", "popover://mode", mode);
@@ -87,6 +87,14 @@ pub fn show_popover(app: &AppHandle, mode: &str) {
     let _ = w.show();
     if mode == "normal" {
         let _ = w.set_focus();
+    }
+}
+
+/// Take down a card the app put up by itself. The person never left their own window, so
+/// app activation is left alone.
+pub fn hide_passive(app: &AppHandle) {
+    if let Some(w) = popover(app) {
+        let _ = w.hide();
     }
 }
 
@@ -125,7 +133,7 @@ pub fn fit_popover(app: &AppHandle, width: f64, height: f64) {
 }
 
 pub fn more_menu<R: Runtime>(w: &WebviewWindow<R>) -> tauri::Result<()> {
-    let review = MenuItem::with_id(w, "review", "上一轮回顾", true, None::<&str>)?;
+    let review = MenuItem::with_id(w, "review", "专注回顾", true, None::<&str>)?;
     let settings = MenuItem::with_id(w, "settings", "设置…", true, Some("CmdOrCtrl+,"))?;
     let quit = MenuItem::with_id(w, "quit", "退出 PomoSupervisor", true, Some("CmdOrCtrl+Q"))?;
     let menu = Menu::with_items(w, &[&review, &settings, &PredefinedMenuItem::separator(w)?, &quit])?;
@@ -156,7 +164,7 @@ pub fn open(app: &AppHandle, label: &str) {
         let _ = w.set_focus();
         return;
     }
-    let (title, h) = if label == "review" { ("本轮回顾", 640.0) } else { ("设置", 560.0) };
+    let (title, h) = if label == "review" { ("专注回顾", 640.0) } else { ("设置", 560.0) };
     let b = WebviewWindowBuilder::new(app, label, WebviewUrl::App("index.html".into()))
         .title(title)
         .inner_size(800.0, h)

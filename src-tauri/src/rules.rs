@@ -29,14 +29,34 @@ pub fn round_allow(extra: &[String], s: &Sample) -> Option<RuleHit> {
                 || s.bundle_name.as_deref().is_some_and(|b| eq_ci(e, b))
                 || host.as_deref().is_some_and(|h| e.contains('.') && domain_matches(h, e))
         })
-        .map(|e| (true, format!("本轮允许：{e}")))
+        .map(|e| (true, format!("额外允许：{e}")))
 }
 
-/// The entry to whitelist for a sample: its site when there is a URL, else its app.
-pub fn allow_target(app: &str, url: Option<&str>) -> String {
+/// Browsers by app name, localized names included ("Safari浏览器").
+pub fn is_browser(app: &str) -> bool {
+    let a = app.trim().to_lowercase();
+    ["safari", "chrome", "chromium", "firefox", "microsoft edge", "brave", "opera", "vivaldi", "browser", "浏览器"]
+        .iter()
+        .any(|b| a.contains(b))
+        || ["arc", "orion", "zen", "dia", "edge", "helium", "librewolf", "waterfox", "floorp", "thorium"].contains(&a.as_str())
+}
+
+/// What to call the window a sample saw: its site, else its app.
+pub fn target_of(app: &str, url: Option<&str>) -> String {
     match url.and_then(host_of) {
         Some(h) => h.strip_prefix("www.").unwrap_or(&h).to_string(),
         None => app.to_string(),
+    }
+}
+
+/// The entry to whitelist for a sample: its site when there is a URL, else its app.
+/// None for a browser without a readable URL: allowing the whole browser would switch
+/// supervision off for everything in it.
+pub fn allow_target(app: &str, url: Option<&str>) -> Option<String> {
+    match url.and_then(host_of) {
+        Some(h) => Some(h.strip_prefix("www.").unwrap_or(&h).to_string()),
+        None if is_browser(app) => None,
+        None => Some(app.to_string()),
     }
 }
 
@@ -128,7 +148,7 @@ mod tests {
     #[test]
     fn mark_as_work_moves_entries() {
         let mut r = Rules::default();
-        mark_as_work(&mut r, &allow_target("Safari", Some("https://www.bilibili.com/x")));
+        mark_as_work(&mut r, &allow_target("Safari", Some("https://www.bilibili.com/x")).unwrap());
         assert!(!r.block_domains.iter().any(|d| d == "bilibili.com"));
         assert!(r.allow_domains.iter().any(|d| d == "bilibili.com"));
         mark_as_work(&mut r, "Steam");
@@ -136,6 +156,17 @@ mod tests {
         assert!(r.allow_apps.iter().any(|a| a == "Steam"));
         let s = sample("Safari", "x", Some("https://bilibili.com/"));
         assert!(evaluate(&r, &s).unwrap().0);
+    }
+
+    #[test]
+    fn a_browser_is_never_the_allow_target() {
+        assert_eq!(allow_target("Safari浏览器", None), None);
+        assert_eq!(allow_target("Google Chrome", None), None);
+        assert_eq!(allow_target("Arc", None), None);
+        assert_eq!(allow_target("Helium", None), None);
+        assert_eq!(allow_target("Google Chrome", Some("https://www.youtube.com/watch")), Some("youtube.com".into()));
+        assert_eq!(allow_target("微信", None), Some("微信".into()));
+        assert_eq!(allow_target("Archive Utility", None), Some("Archive Utility".into()));
     }
 
     #[test]

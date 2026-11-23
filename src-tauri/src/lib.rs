@@ -32,7 +32,7 @@ pub fn run() {
             app.manage(Arc::new(state));
 
             let show = MenuItem::with_id(app, "show", "打开 PomoSupervisor", true, None::<&str>)?;
-            let review = MenuItem::with_id(app, "review", "上一轮回顾", true, None::<&str>)?;
+            let review = MenuItem::with_id(app, "review", "专注回顾", true, None::<&str>)?;
             let settings = MenuItem::with_id(app, "settings", "设置…", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
             let sep = PredefinedMenuItem::separator(app)?;
@@ -63,6 +63,7 @@ pub fn run() {
                         "nudge" => {
                             let st = h.state::<Arc<app::AppState>>();
                             st.start_focus("调试：分心提醒".into(), Some(1), vec![]);
+                            st.core.lock().unwrap().nudging = true;
                             app::emit_tick(&h, &st);
                             tokio::time::sleep(std::time::Duration::from_millis(500)).await;
                             windows::show_popover(&h, "nudge");
@@ -105,6 +106,8 @@ pub fn run() {
             commands::stop,
             commands::rest,
             commands::allow_for_round,
+            commands::dismiss_nudge,
+            commands::focus_popover,
             commands::mark_as_work,
             commands::set_auto_resume,
             commands::recent_verdicts,

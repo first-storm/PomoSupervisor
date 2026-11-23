@@ -1,5 +1,6 @@
 // Dev-only fixtures for previewing the screens in a plain browser (`pnpm dev`, no Tauri).
-//   /?state=start|focus|away|paused|rest|break|nudge   the popover in that state
+//   /?state=start|focus|drift|away|paused|rest|done|break|breakover|nudge   the popover in that state
+//   add &ai=off|broken for no / a broken model, &url=none for a browser whose URL can't be read
 //   /?view=review   /?view=settings                    the windows
 // Never bundled into a release build: api.ts only imports this when import.meta.env.DEV.
 import type { Review, Settings, TimerView, VerdictEvent } from "./api";
@@ -31,16 +32,22 @@ const base: TimerView = {
   short_break_min: 5,
   round_allow: ["github.com", "developer.apple.com", "终端"],
   distracted_ticks: [7],
+  nudging: false,
+  break_over: false,
+  last_focus_min: 25,
 };
 
 const views: Record<string, Partial<TimerView>> = {
   start: { phase: "idle", remaining: 0, total: 0, task: "给采样模块写单元测试，覆盖空闲检测和截图去重", distracted_ticks: [] },
   focus: {},
+  drift: { streak: 2 },
+  done: { phase: "idle", remaining: 0, total: 0, next_break_min: 5 },
+  breakover: { phase: "idle", remaining: 0, total: 0, break_over: true },
   away: { paused: "away", remaining: 12 * 60 + 30, paused_for: 4 * 60 },
   paused: { paused: "user", remaining: 12 * 60 + 30, paused_for: 95 },
   rest: { paused: "user", remaining: 12 * 60 + 30, paused_for: 40, rest_left: 260 },
   break: { phase: "short_break", remaining: 3 * 60 + 12, total: 5 * 60 },
-  nudge: { remaining: 9 * 60 + 12 },
+  nudge: { remaining: 9 * 60 + 12, nudging: true, streak: 3 },
 };
 const view: TimerView = { ...base, ...(views[state] ?? {}) };
 
@@ -55,14 +62,24 @@ const v = (at: number, over: Partial<VerdictEvent>): VerdictEvent => ({
   app: "Xcode",
   title: "SamplerTests.swift",
   url: null,
+  allow_target: "Xcode",
   streak: 0,
   threshold: 3,
   alerted: false,
   ...over,
 });
 const lastVerdict = v(now - 2, {});
+const noUrl = q.get("url") === "none";
 const distracted = (at: number) =>
-  v(at, { stage: "text", result: "distracted", reason: "视频网站，与写测试无关", app: "Safari", title: "【游戏】…", url: "https://www.bilibili.com/video/BV1" });
+  v(at, {
+    stage: "text",
+    result: "distracted",
+    reason: "视频网站，与写测试无关",
+    app: "Safari",
+    title: "【游戏】…",
+    url: noUrl ? null : "https://www.bilibili.com/video/BV1",
+    allow_target: noUrl ? null : "bilibili.com",
+  });
 const recent = [distracted(now - 8), distracted(now - 4), distracted(now)];
 
 const t0 = now - 29 * 60;
@@ -124,13 +141,13 @@ const settings: Settings = {
 
 const answers: Record<string, unknown> = {
   get_state: view,
-  last_verdict: state === "nudge" ? recent[2] : lastVerdict,
+  last_verdict: state === "nudge" || state === "drift" ? recent[2] : lastVerdict,
   recent_verdicts: recent,
   today_completed: 1,
   get_review: review,
   get_settings: settings,
   save_settings: settings,
-  model_status: { text_key: true, vision_key: false, text_ready: true, vision_ready: false, text_error: null, vision_error: null },
+  model_status: { text_key: true, vision_key: false, text_ready: !q.get("ai"), vision_ready: false, text_error: null, vision_error: null },
   check_permissions: { screen_recording: true, accessibility: true },
   mark_as_work: "bilibili.com",
 };
@@ -138,10 +155,10 @@ const answers: Record<string, unknown> = {
 export async function invoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
   if (cmd !== "popover_fit") console.debug("[mock] invoke", cmd, args ?? "");
   if (cmd === "save_settings") return args?.settings as T;
+  if (cmd === "get_settings" && q.get("ai") === "off") return { ...settings, text_model: null } as T;
   return (cmd in answers ? answers[cmd] : view) as T;
 }
 
-export async function listen<T>(event: string, f: (e: { payload: T }) => void) {
-  if (event === "popover://mode" && state === "nudge") setTimeout(() => f({ payload: "nudge" as T }), 0);
+export async function listen<T>(_event: string, _f: (e: { payload: T }) => void) {
   return () => {};
 }

@@ -46,10 +46,24 @@ pub fn allow_for_round(app: AppHandle, state: St, item: String) -> TimerView {
     state.view()
 }
 
+#[tauri::command]
+pub fn dismiss_nudge(app: AppHandle, state: St) -> TimerView {
+    state.dismiss_nudge();
+    emit_tick(&app, &state);
+    state.view()
+}
+
+/// Give the popover the keyboard: it was shown without focus and now has something to type into.
+#[tauri::command]
+pub fn focus_popover(app: AppHandle) {
+    crate::windows::show_popover(&app, "normal");
+}
+
 /// "其实在工作": whitelist this app or site for good.
 #[tauri::command]
 pub fn mark_as_work(state: St, app_name: String, url: Option<String>) -> Result<String, String> {
-    let target = crate::rules::allow_target(&app_name, url.as_deref());
+    let target = crate::rules::allow_target(&app_name, url.as_deref())
+        .ok_or("读不到这个网页的网址，没法只放行它。先在系统设置里允许读取浏览器网址。")?;
     state.mark_as_work(&target).map_err(|e| e.to_string())?;
     Ok(target)
 }

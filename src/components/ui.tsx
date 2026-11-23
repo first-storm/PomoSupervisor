@@ -45,22 +45,11 @@ export function LockIcon() {
   );
 }
 
-/** Hollow boxes that fill as distracted samples count toward a reminder. */
-export function StreakBars({ n, of }: { n: number; of: number }) {
-  return (
-    <span className="bars" aria-hidden="true">
-      {Array.from({ length: of }, (_, i) => (
-        <i key={i} className={i < n ? "on" : ""} />
-      ))}
-    </span>
-  );
-}
-
 /** The badge naming which step of the decision chain settled a sample. */
 export function StageBadge({ v }: { v: Pick<VerdictEvent, "stage" | "result" | "reason"> }) {
   switch (v.stage) {
     case "rules":
-      if (v.reason.startsWith("本轮允许")) return <span className="badge">本轮允许</span>;
+      if (v.reason.startsWith("额外允许")) return <span className="badge">额外允许</span>;
       return <span className="badge">{v.result === "focused" ? "规则 · 白名单" : "规则 · 黑名单"}</span>;
     case "text":
       return <span className="badge model">文本模型</span>;

@@ -8,7 +8,8 @@
  → 规则匹配（应用 / 域名 / 标题关键词 黑白名单）→ 命中即定
  → 文本模型（标题 + URL + 任务描述）→ 有把握即定
  → 截图给视觉模型（pHash 去重后才发，默认关闭）
- → 平滑器：连续 N 次分心才提醒（菜单栏弹出提醒 + 提示音 + 记入统计）
+ → 平滑器：连续 N 次分心才提醒（菜单栏弹出提醒 + 提示音 + 记入统计）；
+   回到任务提醒自动收起，一直不回来则隔 1 / 2 / 5 分钟再提醒
 ```
 
 ## 运行
@@ -47,7 +48,7 @@ API Key 存在 macOS 钥匙串（服务名 `PomoSupervisor`）。设置与统计
 
 - `src-tauri/src/app.rs` — 状态、1 秒主循环、一次采样走完决策链
 - `pipeline.rs` 决策链执行器 · `rules.rs` 规则 · `llm.rs` rig 模型与提示词 · `decision.rs` Decision 模型（System One / OpenAI Decisions） · `vision.rs` 截图与 pHash · `smoother.rs` 平滑器 · `timer.rs` 计时状态机 · `store.rs` SQLite 统计
-- `windows.rs` — 菜单栏弹窗的定位、失焦隐藏，以及“本轮回顾”“设置”两个窗口
-- `src/` — React 前端：`popover/` 菜单栏弹窗（开始前 · 专注中 · 暂停/离开 · 休息 · 分心提醒），`windows/` 本轮回顾与设置
-- 不开 Tauri 预览界面：`pnpm dev` 后打开 `http://localhost:1420/?state=start|focus|away|paused|rest|break|nudge`、`?view=review`、`?view=settings`（数据来自 `src/lib/mock.ts`，只在开发模式加载）
+- `windows.rs` — 菜单栏弹窗的定位、失焦隐藏，以及“专注回顾”“设置”两个窗口
+- `src/` — React 前端：`popover/` 菜单栏弹窗（开始前 · 专注中 · 暂停/离开 · 番茄完成 · 休息 · 休息结束 · 分心提醒），`windows/` 专注回顾与设置
+- 不开 Tauri 预览界面：`pnpm dev` 后打开 `http://localhost:1420/?state=start|focus|drift|away|paused|rest|done|break|breakover|nudge`（可加 `&ai=off|broken`、`&url=none`）、`?view=review`、`?view=settings`（数据来自 `src/lib/mock.ts`，只在开发模式加载）
 - `icon/` — 图标源文件（Icon Composer 分层 + 合成后的 SVG）

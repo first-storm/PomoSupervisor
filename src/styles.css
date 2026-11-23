@@ -107,10 +107,6 @@ input, textarea { user-select: text; }
 .check { display: flex; align-items: center; gap: 8px; font-size: 13px; }
 .check input { width: 15px; height: 15px; margin: 0; accent-color: var(--tomato); }
 
-/* streak boxes: hollow until a sample counts toward the reminder */
-.bars { display: flex; gap: 4px; }
-.bars i { width: 14px; height: 6px; border-radius: 3px; border: 1px solid var(--outline); }
-.bars i.on { border-color: var(--slate); background: var(--slate); }
 
 /* ---------- popover ---------- */
 .card {
@@ -156,19 +152,44 @@ input, textarea { user-select: text; }
 .dial.dim .ticks { opacity: 0.35; }
 .dial.dim .clock { color: var(--muted); }
 
-.streak-line { display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 12px; color: var(--muted); }
 .task-block { display: flex; flex-direction: column; gap: 3px; }
 .task-block .task { font-size: 14px; font-weight: 500; line-height: 1.4; overflow-wrap: anywhere; }
-.watching { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; background: var(--well); }
-.app-tile {
-  width: 28px; height: 28px; flex: none; border-radius: 7px; background: #dfe2e6; border: 1px solid var(--field);
-  display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 600; color: var(--ink-2);
-}
-.watching .what { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
-.watching .name { font-size: 13px; font-weight: 500; }
 .ellipsis { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .body-note { font-size: 13px; line-height: 1.55; color: var(--ink-2); text-align: center; }
 .kv { display: flex; justify-content: space-between; align-items: center; font-size: 13px; }
+
+/* supervision status on the start card */
+.sup { display: flex; align-items: flex-start; gap: 8px; padding: 8px 10px; border-radius: 9px; background: var(--well); font-size: 12px; line-height: 1.5; color: var(--ink-2); }
+.sup .dot { width: 7px; height: 7px; margin-top: 5px; border-radius: 50%; flex: none; background: var(--switch-off); }
+.sup.on .dot { background: #3a8a4d; }
+.sup.bad .dot { background: var(--tomato); }
+.sup .txt { flex: 1; min-width: 0; }
+.link { border: 0; background: none; padding: 0; color: var(--muted); font-size: 12px; text-decoration: underline; text-underline-offset: 2px; white-space: nowrap; }
+.link:active { color: var(--ink); }
+.links { display: flex; justify-content: center; gap: 18px; }
+
+/* what the supervisor makes of the window in front */
+.state { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; background: var(--well); }
+.state .mark { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--switch-off); }
+.state.ok .mark { background: #3a8a4d; }
+.state.hot { background: var(--tomato-soft); }
+.state.hot .mark { background: var(--tomato); }
+.state .what { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.state .name { font-size: 13px; font-weight: 600; }
+.state.hot .name { color: var(--tomato-ink); }
+.state .sub { font-size: 12px; color: var(--muted); }
+details.why > summary { font-size: 12px; color: var(--muted); list-style: none; }
+details.why > summary::-webkit-details-marker { display: none; }
+details.why > summary::before { content: "›"; display: inline-block; width: 12px; transition: transform 0.12s; }
+details.why[open] > summary::before { transform: rotate(90deg); }
+details.why .inner { margin-top: 8px; display: flex; flex-direction: column; gap: 8px; }
+.why-line { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--ink-2); min-width: 0; }
+.btn.danger { color: var(--tomato-ink); border-color: #e3b7ad; }
+.confirm { display: flex; flex-direction: column; gap: 10px; }
+
+/* round done / break over */
+.after-task { font-size: 17px; font-weight: 600; line-height: 1.35; overflow-wrap: anywhere; }
+.after-stats { font-size: 13px; line-height: 1.5; color: var(--ink-2); font-variant-numeric: tabular-nums; }
 
 /* nudge */
 .nudge-head { display: flex; align-items: center; gap: 8px; }
