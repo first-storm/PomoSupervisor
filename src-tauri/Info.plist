@@ -2,6 +2,9 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+  <!-- Liquid Glass icon from icon/PomoSupervisor.icon, compiled into Resources/Assets.car -->
+  <key>CFBundleIconName</key>
+  <string>PomoSupervisor</string>
   <key>NSAppleEventsUsageDescription</key>
   <string>PomoSupervisor 需要读取浏览器当前标签页的网址，用来判断你是否在专注。</string>
   <key>NSScreenCaptureUsageDescription</key>

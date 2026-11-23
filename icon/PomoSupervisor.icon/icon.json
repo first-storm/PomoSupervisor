@@ -1,0 +1,71 @@
+{
+  "fill": {
+    "solid": "srgb:0.98824,0.90980,0.89804,1.00000"
+  },
+  "groups": [
+    {
+      "name": "Timer",
+      "layers": [
+        {
+          "name": "Timer",
+          "image-name": "04-Timer.svg",
+          "glass": false
+        }
+      ],
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.5
+      },
+      "translucency": {
+        "enabled": false,
+        "value": 0
+      }
+    },
+    {
+      "name": "Leaf",
+      "layers": [
+        {
+          "name": "Leaf",
+          "image-name": "03-Leaf.svg",
+          "glass": true
+        }
+      ],
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.5
+      },
+      "translucency": {
+        "enabled": true,
+        "value": 0.4
+      }
+    },
+    {
+      "name": "Body",
+      "layers": [
+        {
+          "name": "Dial",
+          "image-name": "02-Dial.svg",
+          "glass": true
+        },
+        {
+          "name": "Tomato",
+          "image-name": "01-Tomato.svg",
+          "glass": true
+        }
+      ],
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.5
+      },
+      "translucency": {
+        "enabled": true,
+        "value": 0.4
+      }
+    }
+  ],
+  "supported-platforms": {
+    "squares": [
+      "macOS"
+    ]
+  }
+}

@@ -43,3 +43,4 @@ API Key 存在 macOS 钥匙串（服务名 `PomoSupervisor`）。设置与统计
 - `src-tauri/src/app.rs` — 状态、1 秒主循环、一次采样走完决策链
 - `pipeline.rs` 决策链执行器 · `rules.rs` 规则 · `llm.rs` rig 模型与提示词 · `vision.rs` 截图与 pHash · `smoother.rs` 平滑器 · `timer.rs` 计时状态机 · `store.rs` SQLite 统计
 - `src/` — React 前端（计时 / 统计 / 设置）
+- `icon/` — 图标源文件（Icon Composer 分层 + 合成后的 SVG）
