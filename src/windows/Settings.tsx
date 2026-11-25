@@ -33,6 +33,15 @@ const MODEL_HINT: Record<ProviderKind, Record<Slot, string>> = {
   openai_decisions: { text: "如 gpt-6-luna", vision: "如 gpt-6-luna" },
 };
 
+/** One-click fills, so setting a model up is "pick one, paste the key". */
+const PRESETS: { name: string; slots: Slot[]; cfg: (slot: Slot) => ProviderConfig }[] = [
+  { name: "Claude Haiku", slots: ["text", "vision"], cfg: () => ({ kind: "anthropic", base_url: "", model: "claude-haiku-5-5" }) },
+  { name: "DeepSeek", slots: ["text"], cfg: () => ({ kind: "openai", base_url: "https://api.deepseek.com/v1", model: "deepseek-chat" }) },
+  { name: "OpenAI", slots: ["text", "vision"], cfg: () => ({ kind: "openai", base_url: "", model: "gpt-4o-mini" }) },
+  { name: "Ollama 本地", slots: ["text", "vision"], cfg: (slot) => ({ kind: "ollama", base_url: "", model: slot === "text" ? "qwen2.5:7b" : "qwen2.5vl:7b" }) },
+];
+const sameCfg = (a: ProviderConfig, b: ProviderConfig) => a.kind === b.kind && a.base_url === b.base_url && a.model === b.model;
+
 type Update = (patch: Partial<Settings>) => void;
 
 /** A select over presets that keeps the saved value even when it isn't one of them. */
@@ -106,7 +115,7 @@ function GeneralPane({ s, update }: { s: Settings; update: Update }) {
           <NumberIn label="专注时长" value={s.focus_min} min={1} max={180} onChange={(n) => update({ focus_min: n })} />
           <span className="unit">分钟</span>
         </Row>
-        <Row name="短休息" desc="每个番茄之后的休息">
+        <Row name="短休息" desc="每个番茄之后的休息；专注中暂停一次也是这么长，到点自动继续">
           <NumberIn label="短休息" value={s.short_break_min} min={1} max={60} onChange={(n) => update({ short_break_min: n })} />
           <span className="unit">分钟</span>
         </Row>
@@ -121,7 +130,7 @@ function GeneralPane({ s, update }: { s: Settings; update: Update }) {
         <Row name="提示音" desc="番茄结束和分心提醒时播放系统提示音">
           <input type="checkbox" className="switch" aria-label="提示音" checked={s.sound} onChange={(e) => update({ sound: e.target.checked })} />
         </Row>
-        <Row name="回来后自动继续" desc="离开暂停后，一有键鼠操作就继续计时；关掉则等你点「继续专注」">
+        <Row name="回来后自动继续" desc="离开暂停后，一有键鼠操作就继续计时，并告诉你停了多久；关掉则等你点「继续专注」">
           <input type="checkbox" className="switch" aria-label="回来后自动继续" checked={s.auto_resume} onChange={(e) => update({ auto_resume: e.target.checked })} />
         </Row>
       </div>
@@ -144,7 +153,7 @@ function ChainPane({ s, update, go }: { s: Settings; update: Update; go: (p: Pan
         <Row step={1} name="采样" tag="local" desc="读取前台 App、窗口标题、URL 和空闲时间">
           <Choice label="采样间隔" value={s.sample_secs} options={[3, 4, 5, 10]} fmt={secs} onChange={(n) => update({ sample_secs: n })} />
         </Row>
-        <Row step={2} name="空闲检测" tag="local" desc="键鼠无操作超过这个时间，视为离开：暂停计时，不算分心">
+        <Row step={2} name="空闲检测" tag="local" desc="键鼠无操作超过这个时间，视为离开：暂停计时，不算分心。有视频或通话在进行时不算离开">
           <Choice label="空闲阈值" value={s.idle_secs} options={[60, 120, 300, 600]} fmt={span} onChange={(n) => update({ idle_secs: n })} />
         </Row>
         <Row step={3} name="规则匹配" tag="local" desc={`App 和域名命中名单就直接出结论 · 黑名单 ${blocked} 项，白名单 ${allowed} 项`}>
@@ -212,7 +221,7 @@ function ListsPane({ s, update }: { s: Settings; update: Update }) {
         <ListBox label="标题黑名单关键词" value={s.rules.block_keywords} onChange={set("block_keywords")} />
         <ListBox label="标题白名单关键词" value={s.rules.allow_keywords} onChange={set("allow_keywords")} />
       </div>
-      <div className="hint">网站写域名即可，如 bilibili.com，会同时匹配它的子域名。开始专注时加的「额外允许」只跟着当时的任务走（下一轮沿用，可随时移除），且优先于这里的黑名单。</div>
+      <div className="hint">网站写域名即可，如 bilibili.com，会同时匹配它的子域名。开始专注时加的「额外允许」只跟着当时的任务走（下一轮沿用，点「换个任务」时清空），且优先于这里的黑名单。专注中对黑名单里的网站点「这个页面算任务」，只放行那一个页面。</div>
     </>
   );
 }
@@ -256,11 +265,19 @@ function Provider({ slot, title, cfg, onChange, status, onKeySaved }: {
           className="switch"
           aria-label={`配置${title}`}
           checked={!!cfg}
-          onChange={(e) => onChange(e.target.checked ? { kind: "anthropic", base_url: "", model: "" } : null)}
+          onChange={(e) => onChange(e.target.checked ? PRESETS[0].cfg(slot) : null)}
         />
       </div>
       {cfg && (
         <div className="pgrid">
+          <label>快速填入</label>
+          <div className="chips" role="group" aria-label="常用配置">
+            {PRESETS.filter((p) => p.slots.includes(slot)).map((p) => (
+              <button key={p.name} className="chip" aria-pressed={sameCfg(cfg, p.cfg(slot))} onClick={() => onChange(p.cfg(slot))}>
+                {p.name}
+              </button>
+            ))}
+          </div>
           <label htmlFor={`${slot}-kind`}>服务商</label>
           <select id={`${slot}-kind`} className="select" value={cfg.kind} onChange={(e) => onChange({ ...cfg, kind: e.target.value as ProviderKind })}>
             {(Object.keys(KIND_LABEL) as ProviderKind[]).map((k) => (
@@ -347,13 +364,15 @@ function ModelsPane({ s, update }: { s: Settings; update: Update }) {
     <>
       <div>
         <h1>模型与密钥</h1>
-        <div className="lede">通过 rig-core 调用。不配置也能用，只靠空闲检测和规则判断。API Key 存在 macOS 钥匙串。</div>
+        <div className="lede">选一个常用配置，贴上 API Key，点「测试连接」就好。不配置也能用，但只靠黑白名单，名单外的窗口不会管。API Key 存在 macOS 钥匙串。</div>
       </div>
       <div className="rows">
         <Provider slot="text" title="文本模型" cfg={s.text_model} status={status} onKeySaved={refresh} onChange={(c) => update({ text_model: c })} />
         <Provider slot="vision" title="视觉模型" cfg={s.vision_model} status={status} onKeySaved={refresh} onChange={(c) => update({ vision_model: c })} />
       </div>
-      <div className="rows">
+      <details className="why">
+        <summary>高级</summary>
+      <div className="rows" style={{ marginTop: 10 }}>
         <Row name="有把握阈值" desc="文本模型的把握低于它，就交给视觉模型（或不下结论）；Decision 模型低于它时视为没把握">
           <input
             type="range"
@@ -373,6 +392,7 @@ function ModelsPane({ s, update }: { s: Settings; update: Update }) {
           <NumberIn label="截图去重阈值" value={s.phash_threshold} min={0} max={32} onChange={(n) => update({ phash_threshold: n })} />
         </Row>
       </div>
+      </details>
     </>
   );
 }
@@ -447,7 +467,7 @@ function PrivacyPane({ s, update }: { s: Settings; update: Update }) {
 }
 
 export default function SettingsWindow() {
-  const [pane, setPane] = useState<PaneId>("chain");
+  const [pane, setPane] = useState<PaneId>("general");
   const [s, setS] = useState<Settings | null>(null);
   const [err, setErr] = useState("");
   const latest = useRef<Settings | null>(null);

@@ -18,6 +18,9 @@ use std::sync::{Arc, Mutex, RwLock};
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_notification::NotificationExt;
 
+/// The longest a pause can be stretched to.
+const MAX_REST_SECS: u32 = 30 * 60;
+
 /// Ticks on the popover's dial.
 pub const DIAL_TICKS: u32 = 50;
 
@@ -44,6 +47,93 @@ pub struct Core {
     pub break_over: bool,
     /// Length of the last focus round started, to offer the same again.
     pub last_focus_secs: u32,
+    /// A round or a break ran out, or the round is held for someone just back, and no answer yet.
+    pub waiting: Waiting,
+    /// Just back from being away: how long the timer stood still, until the card about it is answered or lapses.
+    pub returned: Option<u32>,
+    pub returned_age: u32,
+    /// The person said they were there all along (reading, thinking): be slower to call them away this round.
+    pub idle_lenient: bool,
+}
+
+/// How long the card for a finished round or break stays up unanswered, and how long a "welcome back" does.
+const CARD_SECS: u32 = 30;
+const RETURNED_SECS: u32 = 10;
+/// After this long with no answer the round is simply over: no break owed, nothing waiting.
+const GIVE_UP_SECS: u32 = 15 * 60;
+
+/// Input within this many seconds: someone is at the keyboard to see a card.
+const PRESENT_SECS: u64 = 20;
+/// When to chase an unanswered card. An overrun break (or a round held for someone who is
+/// back) is where a pomodoro day falls apart, so it is chased sooner and twice; working past
+/// the end of a round only gets one reminder that the break is still owed.
+const CHASE_BREAK: [u32; 2] = [120, 300];
+const CHASE_DONE: [u32; 1] = [300];
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum EndStep {
+    None,
+    /// Take the unanswered card down; the tray keeps counting.
+    Hide,
+    /// Bring the card back up, with the sound.
+    Remind,
+    GiveUp,
+}
+
+/// A card that wants an answer and hasn't got one. Time on screen only counts while the
+/// person is there to see it: a break ends with them away from the desk more often than not,
+/// so the card waits for them, and a reminder that came due meanwhile fires when they return.
+#[derive(Debug, Default, Clone)]
+pub struct Waiting {
+    /// Seconds since the card first went up.
+    pub since: u32,
+    /// Seconds the card has been up in front of someone.
+    seen: u32,
+    up: bool,
+    /// A reminder came due (possibly with nobody there) and hasn't fired yet.
+    owed: bool,
+    /// Reminders that have come due so far.
+    next: usize,
+}
+
+impl Waiting {
+    pub fn start() -> Self {
+        Self { up: true, ..Self::default() }
+    }
+
+    /// One second passes; `chase` lists when (in seconds since the start) to remind.
+    pub fn tick(&mut self, present: bool, chase: &[u32]) -> EndStep {
+        self.since += 1;
+        while self.next < chase.len() && self.since >= chase[self.next] {
+            self.owed = true;
+            self.next += 1;
+        }
+        if present {
+            if self.owed {
+                self.owed = false;
+                self.up = true;
+                self.seen = 0;
+                return EndStep::Remind;
+            }
+            if self.up {
+                self.seen += 1;
+                if self.seen >= CARD_SECS {
+                    self.up = false;
+                    return EndStep::Hide;
+                }
+            }
+        }
+        // Everything was shown to someone and nobody answered: let it go.
+        if !self.up && !self.owed && self.next == chase.len() && self.since >= GIVE_UP_SECS {
+            return EndStep::GiveUp;
+        }
+        EndStep::None
+    }
+}
+
+/// Seconds without input before the person counts as away.
+pub fn idle_limit(base: u64, lenient: bool) -> u64 {
+    if lenient { base * 3 } else { base }
 }
 
 #[derive(Default)]
@@ -89,6 +179,12 @@ pub struct TimerView {
     pub break_over: bool,
     /// Minutes of the last focus round started (the setting before any round).
     pub last_focus_min: u32,
+    /// Seconds a finished round or break has gone unanswered.
+    pub overtime: u32,
+    /// The window in front was last judged off the task (the reminder may not have fired yet).
+    pub drifting: bool,
+    /// Just back from being away: seconds the timer stood still.
+    pub returned: Option<u32>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -132,6 +228,10 @@ impl AppState {
                 nudge_target: None,
                 break_over: false,
                 last_focus_secs: 0,
+                waiting: Waiting::default(),
+                returned: None,
+                returned_age: 0,
+                idle_lenient: false,
             }),
             settings: RwLock::new(settings),
             settings_path,
@@ -195,6 +295,9 @@ impl AppState {
             nudging: core.nudging,
             break_over: core.break_over,
             last_focus_min: if core.last_focus_secs > 0 { core.last_focus_secs / 60 } else { s.focus_min },
+            overtime: if t.phase == Phase::Idle && (t.pending_break.is_some() || core.break_over) { core.waiting.since } else { 0 },
+            drifting: t.phase == Phase::Focus && t.pause.is_none() && core.last.as_ref().is_some_and(|v| v.result == "distracted"),
+            returned: core.returned,
         }
     }
 
@@ -223,6 +326,9 @@ impl AppState {
         core.rest_left = None;
         core.nudging = false;
         core.break_over = false;
+        core.waiting = Waiting::default();
+        core.returned = None;
+        core.idle_lenient = false;
         core.last_focus_secs = secs;
         core.session_id = self.store.lock().unwrap().start_session(&task, secs).ok();
         self.since_sample.store(0, Ordering::Relaxed);
@@ -239,6 +345,8 @@ impl AppState {
         core.rest_left = None;
         core.nudging = false;
         core.break_over = false;
+        core.waiting = Waiting::default();
+        core.returned = None;
     }
 
     pub fn stop(&self) {
@@ -250,28 +358,70 @@ impl AppState {
         core.rest_left = None;
         core.nudging = false;
         core.break_over = false;
+        core.waiting = Waiting::default();
+        core.returned = None;
     }
 
-    pub fn set_user_pause(&self, paused: bool) {
+    /// The task is done before the bell: the round ends here and still earns its break.
+    /// It counts as a finished pomodoro once at least half of it was worked.
+    pub fn finish_early(&self) {
+        let every = self.settings.read().unwrap().long_break_every;
+        let mut core = self.core.lock().unwrap();
+        if core.timer.phase != Phase::Focus {
+            return;
+        }
+        let completed = core.timer.elapsed() * 2 >= core.timer.total;
+        self.close_session(&mut core, completed);
+        let next = if completed { core.timer.next_break(every) } else { Phase::ShortBreak };
+        core.timer.stop();
+        core.timer.pending_break = Some(next);
+        core.smoother.reset();
+        core.rest_left = None;
+        core.nudging = false;
+        core.waiting = Waiting::start();
+        core.returned = None;
+    }
+
+    pub fn resume(&self) {
         let mut core = self.core.lock().unwrap();
         if core.timer.phase == Phase::Idle {
             return;
         }
-        core.timer.pause = paused.then_some(PauseReason::User);
+        core.timer.pause = None;
         core.rest_left = None;
         core.nudging = false;
+        core.returned = None;
     }
 
-    /// Pause the focus round for a few minutes, then carry on by itself.
+    /// Pause the focus round for a few minutes, then carry on by itself. A pause is always
+    /// timed: an open-ended one is a way out of the round that nobody notices. Asking again
+    /// while paused adds the minutes on.
     pub fn rest(&self, minutes: u32) {
         let mut core = self.core.lock().unwrap();
         if core.timer.phase != Phase::Focus {
             return;
         }
+        let add = minutes.clamp(1, 60) * 60;
+        let had = if core.timer.pause == Some(PauseReason::User) { core.rest_left.unwrap_or(0) } else { 0 };
         core.timer.pause = Some(PauseReason::User);
-        core.rest_left = Some(minutes.clamp(1, 60) * 60);
+        core.rest_left = Some((had + add).min(MAX_REST_SECS));
         core.smoother.reset();
         core.nudging = false;
+        core.returned = None;
+    }
+
+    /// "I never left": the timer stopped while the person was reading or thinking. Give the
+    /// stopped time back to the round and be slower to call them away for the rest of it.
+    pub fn still_here(&self) {
+        let mut core = self.core.lock().unwrap();
+        let Some(secs) = core.returned.take() else { return };
+        if core.timer.phase != Phase::Focus {
+            return;
+        }
+        core.timer.pause = None;
+        core.rest_left = None;
+        core.timer.remaining = core.timer.remaining.saturating_sub(secs).max(1);
+        core.idle_lenient = true;
     }
 
     /// "Back to the task": take the reminder down. The smoother keeps its quiet period, so
@@ -337,7 +487,11 @@ static TRAY_LOOK: Mutex<Option<TrayLook>> = Mutex::new(None);
 fn update_tray(app: &AppHandle, v: &TimerView) {
     let Some(tray) = app.tray_by_id("main") else { return };
     let title = match v.phase {
+        // A finished round or break nobody answered: count up, so the overrun is in plain sight.
+        Phase::Idle if v.overtime > 0 => format!(" +{}", fmt_mmss(v.overtime)),
         Phase::Idle => String::new(),
+        // Drifting: a quiet mark by the clock before (and while) the reminder is up.
+        Phase::Focus if v.paused.is_none() && (v.nudging || v.drifting) => format!(" {} ⚠\u{FE0E}", fmt_mmss(v.remaining)),
         _ => format!(" {}", fmt_mmss(v.remaining)),
     };
     let _ = tray.set_title(Some(title));
@@ -376,9 +530,43 @@ pub fn spawn_loop(app: AppHandle) {
         loop {
             iv.tick().await;
             let state = app.state::<Arc<AppState>>().inner().clone();
-            let (ended, rest_done) = {
+            let (ended, rest_done, step, lapsed) = {
                 let mut core = state.core.lock().unwrap();
                 let mut rest_done = false;
+                // A finished round or break waiting for an answer, or a round held for someone just back.
+                let ended = core.timer.phase == Phase::Idle && (core.timer.pending_break.is_some() || core.break_over);
+                let held = core.timer.phase == Phase::Focus
+                    && core.timer.pause == Some(PauseReason::User)
+                    && core.rest_left.is_none()
+                    && core.returned.is_some();
+                let step = if ended || held {
+                    let chase: &[u32] = if held || core.break_over { &CHASE_BREAK } else { &CHASE_DONE };
+                    core.waiting.tick(sampler::idle_secs() <= PRESENT_SECS, chase)
+                } else {
+                    core.waiting = Waiting::default();
+                    EndStep::None
+                };
+                if step == EndStep::GiveUp {
+                    if held {
+                        // Back at the desk for a quarter of an hour without picking the round up: it is over.
+                        state.close_session(&mut core, false);
+                        core.timer.stop();
+                        core.smoother.reset();
+                        core.returned = None;
+                    }
+                    core.timer.pending_break = None;
+                    core.break_over = false;
+                    core.waiting = Waiting::default();
+                }
+                // "Welcome back" needs no answer once the timer runs again: let it lapse.
+                let mut lapsed = false;
+                if core.returned.is_some() && core.timer.pause.is_none() {
+                    core.returned_age += 1;
+                    if core.returned_age >= RETURNED_SECS {
+                        core.returned = None;
+                        lapsed = true;
+                    }
+                }
                 // A timed rest during focus counts down, then the round carries on.
                 if let Some(left) = core.rest_left {
                     if core.timer.pause != Some(PauseReason::User) {
@@ -391,8 +579,22 @@ pub fn spawn_loop(app: AppHandle) {
                         core.rest_left = Some(left - 1);
                     }
                 }
-                (core.timer.tick(), rest_done)
+                (core.timer.tick(), rest_done, step, lapsed)
             };
+            match step {
+                EndStep::Hide | EndStep::GiveUp => crate::windows::hide_passive(&app),
+                EndStep::Remind => {
+                    if state.settings.read().unwrap().sound {
+                        play("Glass");
+                    }
+                    emit_tick(&app, &state);
+                    crate::windows::show_popover(&app, "passive");
+                }
+                _ => {}
+            }
+            if lapsed {
+                crate::windows::hide_passive(&app);
+            }
             if rest_done {
                 notify(&app, "暂停结束", "计时继续了，回到任务上吧。");
                 if state.settings.read().unwrap().sound {
@@ -443,6 +645,8 @@ fn on_phase_end(app: &AppHandle, state: &AppState, phase: Phase) {
                 core.timer.pending_break = Some(next);
                 core.smoother.reset();
                 core.nudging = false;
+                core.waiting = Waiting::start();
+                core.returned = None;
             }
             notify(app, "番茄完成", "休息一下，或者接着再来一轮。");
             // The person is probably mid-keystroke: show the card without taking focus.
@@ -454,6 +658,7 @@ fn on_phase_end(app: &AppHandle, state: &AppState, phase: Phase) {
                 let mut core = state.core.lock().unwrap();
                 core.timer.stop();
                 core.break_over = true;
+                core.waiting = Waiting::start();
             }
             notify(app, "休息结束", "准备好就开始下一个番茄。");
             emit_tick(app, state);
@@ -496,9 +701,19 @@ fn build_stages(state: &Arc<AppState>, s: &Arc<Sample>, settings: &Arc<Settings>
 
     // 1. Idle for longer than the threshold: the person has left.
     {
-        let (s, settings) = (s.clone(), settings.clone());
+        let (state, s, settings) = (state.clone(), s.clone(), settings.clone());
         stages.push(Box::new(move || {
-            Box::pin(async move { if s.idle_secs > settings.idle_secs { StageResult::Away } else { StageResult::Pass(None) } })
+            Box::pin(async move {
+                let lenient = state.core.lock().unwrap().idle_lenient;
+                if s.idle_secs <= idle_limit(settings.idle_secs, lenient) {
+                    StageResult::Pass(None)
+                } else if sampler::display_held_awake().await {
+                    // Watching a lecture or sitting in a call: let the rest of the chain say whether it is the task.
+                    StageResult::Pass(Some("长时间没有键鼠操作，但有视频或通话在进行，不算离开".into()))
+                } else {
+                    StageResult::Away
+                }
+            })
         }));
     }
 
@@ -626,7 +841,10 @@ fn build_stages(state: &Arc<AppState>, s: &Arc<Sample>, settings: &Arc<Settings>
 async fn run_sample(app: &AppHandle, state: &Arc<AppState>) {
     let Some(sample) = sampler::sample().await else { return };
     let settings = Arc::new(state.settings());
-    let task = Arc::new(state.core.lock().unwrap().timer.task.clone());
+    let task = Arc::new({
+        let core = state.core.lock().unwrap();
+        llm::task_context(&core.timer.task, &core.round_allow)
+    });
 
     let own = sample.pid == std::process::id() as u64;
     let (outcome, notes) = if own && sample.idle_secs <= settings.idle_secs {
@@ -639,11 +857,12 @@ async fn run_sample(app: &AppHandle, state: &Arc<AppState>) {
     // The round may have ended or been paused by the user while we waited on a model.
     let shown_app = sample.bundle_name.clone().unwrap_or(sample.app.clone());
     let target = crate::rules::target_of(&shown_app, sample.url.as_deref());
-    let (signal, alerted, recovered, streak, session) = {
+    let (signal, alerted, recovered, streak, session, came_back, first) = {
         let mut core = state.core.lock().unwrap();
         if core.timer.phase != Phase::Focus || core.timer.pause == Some(PauseReason::User) {
             return;
         }
+        let mut came_back = false;
         match outcome {
             Outcome::Away => {
                 core.timer.pause.get_or_insert(PauseReason::Away);
@@ -651,7 +870,11 @@ async fn run_sample(app: &AppHandle, state: &Arc<AppState>) {
             }
             // Back from being away: carry on, or hold until the person clicks to continue.
             _ if core.timer.pause == Some(PauseReason::Away) => {
+                core.returned = Some(core.timer.paused_for);
+                core.returned_age = 0;
+                core.waiting = Waiting::start();
                 core.timer.pause = (!settings.auto_resume).then_some(PauseReason::User);
+                came_back = true;
             }
             _ => {}
         }
@@ -681,7 +904,7 @@ async fn run_sample(app: &AppHandle, state: &Arc<AppState>) {
             Signal::Neutral => outcome == Outcome::Away || (!own && core.nudge_target.as_deref() != Some(target.as_str())),
         };
         let recovered = !alerted && left && std::mem::take(&mut core.nudging);
-        (signal, alerted, recovered, core.smoother.streak, core.session_id)
+        (signal, alerted, recovered, core.smoother.streak, core.session_id, came_back, core.smoother.repeats() <= 1)
     };
 
     let (stage, result, reason, confidence, cached) = match &outcome {
@@ -704,11 +927,12 @@ async fn run_sample(app: &AppHandle, state: &Arc<AppState>) {
             let _ = db.log_alert(session, &stage, &sample, &reason);
         }
     }
+    // The first reminder of a distraction is a tap on the shoulder; only the repeats insist.
     if alerted && settings.sound {
-        play("Sosumi");
+        play(if first { "Tink" } else { "Sosumi" });
     }
 
-    let allow_target = crate::rules::allow_target(&shown_app, sample.url.as_deref())
+    let allow_target = crate::rules::round_allow_target(&settings.rules, &shown_app, sample.url.as_deref())
         .filter(|_| sample.url.is_some() || !crate::rules::is_browser(&sample.app));
     let ev = VerdictEvent {
         at: store::now(),
@@ -743,5 +967,123 @@ async fn run_sample(app: &AppHandle, state: &Arc<AppState>) {
         crate::windows::show_popover(app, "nudge");
     } else if recovered {
         crate::windows::hide_passive(app);
+    } else if came_back {
+        // Say what happened while they were gone, and (when it waits for them) offer to carry on.
+        crate::windows::show_popover(app, "passive");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Runs a waiting card for `secs`, with the person there when `present(t)` says so.
+    fn steps(chase: &[u32], secs: u32, present: impl Fn(u32) -> bool) -> Vec<(u32, EndStep)> {
+        let mut w = Waiting::start();
+        let mut out = Vec::new();
+        for t in 1..=secs {
+            let step = w.tick(present(t), chase);
+            if step != EndStep::None {
+                let over = step == EndStep::GiveUp;
+                out.push((t, step));
+                // The loop drops the card here.
+                if over {
+                    break;
+                }
+            }
+        }
+        out
+    }
+
+    #[test]
+    fn an_unanswered_round_gets_one_reminder_and_a_break_two() {
+        use EndStep::*;
+        assert_eq!(steps(&CHASE_DONE, 1000, |_| true), vec![(30, Hide), (300, Remind), (330, Hide), (900, GiveUp)]);
+        assert_eq!(
+            steps(&CHASE_BREAK, 1000, |_| true),
+            vec![(30, Hide), (120, Remind), (150, Hide), (300, Remind), (330, Hide), (900, GiveUp)]
+        );
+    }
+
+    #[test]
+    fn the_card_waits_for_someone_who_is_away() {
+        use EndStep::*;
+        // The break ends with nobody at the desk; they come back 20 minutes in.
+        let got = steps(&CHASE_BREAK, 1400, |t| t > 1200);
+        // Nothing is hidden, reminded or given up into an empty room. On their return the
+        // missed reminders fire once, the card gets its 30 seconds in front of them, and only then is it let go.
+        assert_eq!(got, vec![(1201, Remind), (1231, Hide), (1232, GiveUp)]);
+        // Stepping out mid-card pauses its 30 seconds rather than spending them.
+        let got = steps(&CHASE_DONE, 200, |t| t <= 10 || t > 100);
+        assert_eq!(got, vec![(120, Hide)]);
+    }
+
+    #[test]
+    fn saying_you_were_there_stretches_the_idle_limit() {
+        assert_eq!(idle_limit(120, false), 120);
+        assert_eq!(idle_limit(120, true), 360);
+    }
+
+    fn state() -> AppState {
+        let dir = std::env::temp_dir().join(format!("pomo-app-test-{}-{:?}", std::process::id(), std::thread::current().id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        AppState::new(dir.join("settings.json"), dir.join("t.db")).unwrap()
+    }
+
+    #[test]
+    fn a_pause_is_timed_and_can_be_stretched() {
+        let st = state();
+        st.start_focus("写测试".into(), Some(25), vec![]);
+        st.rest(5);
+        assert_eq!(st.view().rest_left, Some(300));
+        st.rest(5);
+        assert_eq!(st.view().rest_left, Some(600));
+        for _ in 0..10 {
+            st.rest(5);
+        }
+        assert_eq!(st.view().rest_left, Some(MAX_REST_SECS));
+        st.resume();
+        let v = st.view();
+        assert_eq!((v.paused, v.rest_left), (None, None));
+    }
+
+    #[test]
+    fn finishing_early_still_earns_the_break() {
+        let st = state();
+        st.start_focus("写测试".into(), Some(10), vec![]);
+        st.core.lock().unwrap().timer.remaining = 4 * 60;
+        st.finish_early();
+        let v = st.view();
+        assert_eq!(v.phase, Phase::Idle);
+        assert_eq!(v.next_break_min, Some(5));
+        assert_eq!(st.core.lock().unwrap().timer.cycle, 1, "past the half: a finished pomodoro");
+        // Barely started: the break is still offered, but it is not a pomodoro.
+        st.start_focus("写测试".into(), Some(10), vec![]);
+        st.finish_early();
+        assert_eq!(st.view().next_break_min, Some(5));
+        assert_eq!(st.core.lock().unwrap().timer.cycle, 1);
+        // Abandoning owes nothing.
+        st.start_focus("写测试".into(), Some(10), vec![]);
+        st.stop();
+        assert_eq!(st.view().next_break_min, None);
+    }
+
+    #[test]
+    fn never_left_gives_the_stopped_time_back() {
+        let st = state();
+        st.start_focus("读论文".into(), Some(25), vec![]);
+        {
+            let mut core = st.core.lock().unwrap();
+            core.timer.remaining = 600;
+            core.timer.pause = Some(PauseReason::User);
+            core.returned = Some(240);
+        }
+        st.still_here();
+        let v = st.view();
+        assert_eq!((v.remaining, v.paused, v.returned), (360, None, None));
+        assert!(st.core.lock().unwrap().idle_lenient);
+        // Nothing to give back twice.
+        st.still_here();
+        assert_eq!(st.view().remaining, 360);
     }
 }

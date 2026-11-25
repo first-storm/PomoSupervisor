@@ -1,11 +1,15 @@
 //! The menu-bar popover and the Review / Settings windows.
-use std::sync::atomic::{AtomicI64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::{AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, Runtime, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 
 /// When the popover last hid because it lost focus. A click on the tray icon blurs the
 /// popover before the click arrives, so a click right after that hide must not reopen it.
 static BLUR_HIDE_MS: AtomicI64 = AtomicI64::new(0);
+
+/// The card on screen came up by itself (a reminder, a finished round) and nobody has
+/// taken it over: only such a card may be taken down again without a click.
+static PASSIVE: AtomicBool = AtomicBool::new(false);
 
 fn now_ms() -> i64 {
     chrono::Utc::now().timestamp_millis()
@@ -75,6 +79,9 @@ fn activate(app: &AppHandle) {
 /// round, a finished break. Those show over whatever is in front without taking the keyboard.
 pub fn show_popover(app: &AppHandle, mode: &str) {
     let Some(w) = popover(app) else { return };
+    // A card the person opened themselves stays theirs: a reminder shows in it, without taking it over.
+    let open_by_hand = w.is_visible().unwrap_or(false) && !PASSIVE.load(Ordering::Relaxed);
+    PASSIVE.store(mode != "normal" && !open_by_hand, Ordering::Relaxed);
     let _ = w.emit_to("main", "popover://mode", mode);
     #[cfg(target_os = "macos")]
     {
@@ -90,9 +97,12 @@ pub fn show_popover(app: &AppHandle, mode: &str) {
     }
 }
 
-/// Take down a card the app put up by itself. The person never left their own window, so
-/// app activation is left alone.
+/// Take down a card the app put up by itself (and only that: a popover the person opened
+/// stays). They never left their own window, so app activation is left alone.
 pub fn hide_passive(app: &AppHandle) {
+    if !PASSIVE.swap(false, Ordering::Relaxed) {
+        return;
+    }
     if let Some(w) = popover(app) {
         let _ = w.hide();
     }
@@ -102,6 +112,7 @@ pub fn hide_passive(app: &AppHandle) {
 /// app so macOS hands focus back to whatever the person was using.
 pub fn dismiss_popover(app: &AppHandle) {
     let Some(w) = popover(app) else { return };
+    PASSIVE.store(false, Ordering::Relaxed);
     let _ = w.hide();
     let others = ["review", "settings"].iter().any(|l| app.get_webview_window(l).is_some());
     #[cfg(target_os = "macos")]
@@ -123,7 +134,13 @@ pub fn toggle_popover(app: &AppHandle) {
 
 pub fn on_popover_blur(w: &tauri::Window) {
     BLUR_HIDE_MS.store(now_ms(), Ordering::Relaxed);
+    PASSIVE.store(false, Ordering::Relaxed);
     let _ = w.hide();
+}
+
+/// The person clicked into a card that came up by itself: it is theirs now, and stays until they are done with it.
+pub fn on_popover_focus() {
+    PASSIVE.store(false, Ordering::Relaxed);
 }
 
 pub fn fit_popover(app: &AppHandle, width: f64, height: f64) {
@@ -152,6 +169,7 @@ pub fn on_menu(app: &AppHandle, id: &str) {
 /// Open (or bring forward) the Review or Settings window.
 pub fn open(app: &AppHandle, label: &str) {
     if let Some(p) = popover(app) {
+        PASSIVE.store(false, Ordering::Relaxed);
         let _ = p.hide();
     }
     set_dock(app, true);

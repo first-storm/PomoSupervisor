@@ -1,13 +1,16 @@
 // Dev-only fixtures for previewing the screens in a plain browser (`pnpm dev`, no Tauri).
-//   /?state=start|focus|drift|away|paused|rest|done|break|breakover|nudge   the popover in that state
-//   add &ai=off|broken for no / a broken model, &url=none for a browser whose URL can't be read
-//   /?view=review   /?view=settings                    the windows
+//   /?state=start|focus|drift|away|back|returned|rest|done|early|late|break|breakover|nudge   the popover in that state
+//   add &ai=off|broken for no / a broken model, &url=none for a browser whose URL can't be read,
+//   &site=blocked for a reminder about a block-listed site (only the page can be allowed)
+//   /?view=review   /?view=settings[&pane=general|chain|lists|models|privacy]   the windows
 // Never bundled into a release build: api.ts only imports this when import.meta.env.DEV.
 import type { Review, Settings, TimerView, VerdictEvent } from "./api";
 
 const q = new URLSearchParams(location.search);
 const state = q.get("state") ?? "focus";
 const now = Math.floor(Date.now() / 1000);
+// /?view=settings&pane=models opens Settings on that pane.
+if (q.get("pane")) localStorage.setItem("settings.pane", q.get("pane")!);
 
 if ((q.get("view") ?? "main") === "main") {
   document.documentElement.style.cssText = "background:#CCD2D8;padding:24px 40px;height:auto";
@@ -35,19 +38,25 @@ const base: TimerView = {
   nudging: false,
   break_over: false,
   last_focus_min: 25,
+  overtime: 0,
+  drifting: false,
+  returned: null,
 };
 
 const views: Record<string, Partial<TimerView>> = {
   start: { phase: "idle", remaining: 0, total: 0, task: "给采样模块写单元测试，覆盖空闲检测和截图去重", distracted_ticks: [] },
   focus: {},
-  drift: { streak: 2 },
-  done: { phase: "idle", remaining: 0, total: 0, next_break_min: 5 },
-  breakover: { phase: "idle", remaining: 0, total: 0, break_over: true },
+  drift: { streak: 2, drifting: true },
+  done: { phase: "idle", remaining: 0, total: 0, next_break_min: 5, overtime: 4 },
+  early: { phase: "idle", remaining: 0, total: 0, next_break_min: 5, overtime: 4 },
+  late: { phase: "idle", remaining: 0, total: 0, next_break_min: 5, overtime: 5 * 60 + 2 },
+  breakover: { phase: "idle", remaining: 0, total: 0, break_over: true, overtime: 2 * 60 + 5 },
   away: { paused: "away", remaining: 12 * 60 + 30, paused_for: 4 * 60 },
-  paused: { paused: "user", remaining: 12 * 60 + 30, paused_for: 95 },
+  back: { paused: "user", remaining: 12 * 60 + 30, paused_for: 4 * 60 + 6, returned: 4 * 60, auto_resume: false },
+  returned: { remaining: 12 * 60 + 26, returned: 4 * 60 },
   rest: { paused: "user", remaining: 12 * 60 + 30, paused_for: 40, rest_left: 260 },
   break: { phase: "short_break", remaining: 3 * 60 + 12, total: 5 * 60 },
-  nudge: { remaining: 9 * 60 + 12, nudging: true, streak: 3 },
+  nudge: { remaining: 9 * 60 + 12, nudging: true, streak: 3, drifting: true },
 };
 const view: TimerView = { ...base, ...(views[state] ?? {}) };
 
@@ -70,15 +79,16 @@ const v = (at: number, over: Partial<VerdictEvent>): VerdictEvent => ({
 });
 const lastVerdict = v(now - 2, {});
 const noUrl = q.get("url") === "none";
+const blocked = q.get("site") === "blocked";
 const distracted = (at: number) =>
   v(at, {
-    stage: "text",
     result: "distracted",
-    reason: "视频网站，与写测试无关",
+    reason: blocked ? "黑名单网站：bilibili.com" : "问答社区闲逛，与写测试无关",
+    stage: blocked ? "rules" : "text",
     app: "Safari",
     title: "【游戏】…",
-    url: noUrl ? null : "https://www.bilibili.com/video/BV1",
-    allow_target: noUrl ? null : "bilibili.com",
+    url: noUrl ? null : blocked ? "https://www.bilibili.com/video/BV1" : "https://www.zhihu.com/question/1",
+    allow_target: noUrl ? null : blocked ? "https://www.bilibili.com/video/BV1" : "zhihu.com",
   });
 const recent = [distracted(now - 8), distracted(now - 4), distracted(now)];
 
@@ -144,7 +154,7 @@ const answers: Record<string, unknown> = {
   last_verdict: state === "nudge" || state === "drift" ? recent[2] : lastVerdict,
   recent_verdicts: recent,
   today_completed: 1,
-  get_review: review,
+  get_review: state === "early" ? { ...review, completed: false, focus_secs: 9 * 60, distract_secs: 0, alerts: 0 } : review,
   get_settings: settings,
   save_settings: settings,
   model_status: { text_key: true, vision_key: false, text_ready: !q.get("ai"), vision_ready: false, text_error: null, vision_error: null },

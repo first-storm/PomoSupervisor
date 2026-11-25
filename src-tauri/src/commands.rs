@@ -125,16 +125,32 @@ pub fn popover_menu(window: tauri::WebviewWindow) -> Result<(), String> {
     crate::windows::more_menu(&window).map_err(|e| e.to_string())
 }
 
+/// Pausing takes the short break's length; the round carries on by itself afterwards.
 #[tauri::command]
 pub fn pause(app: AppHandle, state: St) -> TimerView {
-    state.set_user_pause(true);
+    let minutes = state.settings.read().unwrap().short_break_min;
+    state.rest(minutes);
     emit_tick(&app, &state);
     state.view()
 }
 
 #[tauri::command]
 pub fn resume(app: AppHandle, state: St) -> TimerView {
-    state.set_user_pause(false);
+    state.resume();
+    emit_tick(&app, &state);
+    state.view()
+}
+
+#[tauri::command]
+pub fn finish_early(app: AppHandle, state: St) -> TimerView {
+    state.finish_early();
+    emit_tick(&app, &state);
+    state.view()
+}
+
+#[tauri::command]
+pub fn still_here(app: AppHandle, state: St) -> TimerView {
+    state.still_here();
     emit_tick(&app, &state);
     state.view()
 }

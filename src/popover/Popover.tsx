@@ -1,7 +1,10 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
+  allowLabel,
   api,
   hms,
+  isPage,
+  hostOf,
   mmss,
   onPopoverMode,
   onTick,
@@ -107,10 +110,11 @@ function Supervision({ ai, task }: { ai: Ai; task: string }) {
   );
 }
 
-function StartCard({ view, completed, missing, ai }: { view: TimerView; completed: number; missing: Missing; ai: Ai }) {
-  const [task, setTask] = useState(view.task);
+/** `fresh`: a different task was asked for, so neither the last task nor what was allowed for it carries over. */
+function StartCard({ view, completed, missing, ai, fresh, onBack }: { view: TimerView; completed: number; missing: Missing; ai: Ai; fresh: boolean; onBack: () => void }) {
+  const [task, setTask] = useState(fresh ? "" : view.task);
   const [minutes, setMinutes] = useState(view.last_focus_min);
-  const [allow, setAllow] = useState<string[]>(view.round_allow);
+  const [allow, setAllow] = useState<string[]>(fresh ? [] : view.round_allow);
   const [adding, setAdding] = useState<string | null>(null);
   // The usual lengths, plus the one from Settings and the one used last.
   const presets = [...new Set([...PRESETS, Math.round(view.focus_secs / 60), view.last_focus_min])].sort((a, b) => a - b);
@@ -125,7 +129,7 @@ function StartCard({ view, completed, missing, ai }: { view: TimerView; complete
   return (
     <>
       <div className="card-head">
-        <div className="title">这一轮做什么？</div>
+        <div className="title">{fresh ? "换成什么任务？" : "这一轮做什么？"}</div>
         <More />
       </div>
       {(missing.screen || missing.ax) && <PermissionBanner missing={missing} />}
@@ -166,8 +170,8 @@ function StartCard({ view, completed, missing, ai }: { view: TimerView; complete
         <div className="label">额外允许</div>
         <div className="chips">
           {allow.map((a) => (
-            <button key={a} className="chip" aria-label={`移除 ${a}`} title="点击移除" onClick={() => setAllow(allow.filter((x) => x !== a))}>
-              {a}
+            <button key={a} className="chip" aria-label={`移除 ${allowLabel(a)}`} title={isPage(a) ? `${a}\n点击移除` : "点击移除"} onClick={() => setAllow(allow.filter((x) => x !== a))}>
+              {allowLabel(a)}
               <span className="x" aria-hidden="true">
                 ×
               </span>
@@ -194,7 +198,7 @@ function StartCard({ view, completed, missing, ai }: { view: TimerView; complete
             />
           )}
         </div>
-        <div className="hint">这些 App 和网站直接算专注。下一轮会沿用，不需要了点一下移除。</div>
+        <div className="hint">这些 App 和网站直接算专注。下一轮沿用；点「换个任务」时清空。</div>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         <button className="big-btn" onClick={start}>
@@ -202,6 +206,18 @@ function StartCard({ view, completed, missing, ai }: { view: TimerView; complete
         </button>
         <div className="center-note">{completed ? `今天已完成 ${completed} 个番茄 · 回车直接开始` : "回车直接开始"}</div>
       </div>
+      {fresh && (
+        <div className="links">
+          {view.next_break_min != null && (
+            <button className="link" onClick={() => api.startBreak().then(() => api.closeWindow())}>
+              先休息 {view.next_break_min} 分钟
+            </button>
+          )}
+          <button className="link" onClick={onBack}>
+            返回
+          </button>
+        </div>
+      )}
     </>
   );
 }
@@ -233,8 +249,12 @@ function Judgement({ v }: { v: VerdictEvent | null }) {
           </div>
         </div>
         {off && v.allow_target && (
-          <button className="btn small" onClick={() => api.allowForRound(v.allow_target!).then(() => api.closeWindow())}>
-            这算任务
+          <button
+            className="btn small"
+            title={isPage(v.allow_target) ? "只放行这个页面，这个网站的其他页面照旧" : `这一轮不再提醒 ${v.allow_target}`}
+            onClick={() => api.allowForRound(v.allow_target!).then(() => api.closeWindow())}
+          >
+            {isPage(v.allow_target) ? "这页算任务" : "这算任务"}
           </button>
         )}
       </div>
@@ -257,22 +277,26 @@ function Judgement({ v }: { v: VerdictEvent | null }) {
   );
 }
 
-/** Ending a round early throws work away, so it takes a second click; pausing doesn't. */
+/**
+ * Ending before the bell is two different things: the task got done (good news: keep the
+ * time, take the break) or the round is being given up. Ask which; pausing needs no question.
+ */
 function RoundActions({ view, children }: { view: TimerView; children: React.ReactNode }) {
   const [asking, setAsking] = useState(false);
   if (asking) {
+    const elapsed = view.total - view.remaining;
     return (
       <div className="confirm">
-        <div className="body-note">
-          提前结束这一轮？
-          <br />
-          已经过去的 {dur(view.total - view.remaining)}会留在回顾里，但不算完成一个番茄。
-        </div>
+        <div className="body-note">这一轮到这里？已经过去 {dur(elapsed)}。</div>
+        <button className="btn primary" style={{ height: 34, borderRadius: 9 }} onClick={() => api.finishEarly()}>
+          任务做完了
+        </button>
+        <div className="hint">{elapsed * 2 >= view.total ? "记为一个番茄，照常休息。" : "时间记进回顾，照常休息；还没过半，不算一个番茄。"}</div>
         <div className="btn-row">
           <button className="btn grow danger" onClick={() => api.stop()}>
-            提前结束
+            放弃这一轮
           </button>
-          <button className="btn primary grow" onClick={() => setAsking(false)}>
+          <button className="btn grow" onClick={() => setAsking(false)}>
             接着专注
           </button>
         </div>
@@ -281,8 +305,8 @@ function RoundActions({ view, children }: { view: TimerView; children: React.Rea
   }
   return (
     <div className="btn-row">
-      <button className="btn grow" onClick={() => setAsking(true)}>
-        提前结束
+      <button className="btn" onClick={() => setAsking(true)}>
+        结束…
       </button>
       {children}
     </div>
@@ -314,7 +338,7 @@ function FocusCard({ view, verdict, completed }: { view: TimerView; verdict: Ver
       <Judgement v={verdict} />
       <RoundActions view={view}>
         <button className="btn grow" onClick={() => api.pause()}>
-          暂停
+          暂停 {view.short_break_min} 分钟
         </button>
       </RoundActions>
     </>
@@ -324,6 +348,8 @@ function FocusCard({ view, verdict, completed }: { view: TimerView; verdict: Ver
 function PausedCard({ view, completed }: { view: TimerView; completed: number }) {
   const away = view.paused === "away";
   const timed = view.rest_left != null;
+  // Back from being away, with the round held until they say so.
+  const back = !away && view.returned != null;
   const progress = view.total ? 1 - view.remaining / view.total : 0;
   const idle = view.idle_secs;
   return (
@@ -331,7 +357,7 @@ function PausedCard({ view, completed }: { view: TimerView; completed: number })
       <div className="card-head">
         <span className="pill">
           <PauseIcon />
-          {away ? "已暂停 · 你离开了" : "已暂停"}
+          {away ? "已暂停 · 你离开了" : back ? "你回来了" : "已暂停"}
         </span>
         <div className="side">
           <span>今天第 {completed + 1} 个</span>
@@ -340,7 +366,7 @@ function PausedCard({ view, completed }: { view: TimerView; completed: number })
       </div>
       <Dial progress={progress} distracted={view.distracted_ticks} tone="dim">
         <div className="clock">{mmss(view.remaining)}</div>
-        <div className="sub">{timed ? `${mmss(view.rest_left!)} 后自动继续` : "停在这里"}</div>
+        <div className="sub">{timed ? `${mmss(view.rest_left!)} 后自动继续` : back ? "等你继续" : "停在这里"}</div>
       </Dial>
       <div className="body-note">
         {away ? (
@@ -348,6 +374,12 @@ function PausedCard({ view, completed }: { view: TimerView; completed: number })
             键鼠 {dur(idle)}没有操作，计时自动停了。
             <br />
             离开的时间不算分心。
+          </>
+        ) : back ? (
+          <>
+            离开期间计时停了 {dur(view.returned!)}，不算分心。
+            <br />
+            其实一直在看资料？点「我没离开」把这段时间算回来。
           </>
         ) : timed ? (
           <>
@@ -364,23 +396,61 @@ function PausedCard({ view, completed }: { view: TimerView; completed: number })
         )}
       </div>
       <div className="rule" />
-      <div className="kv">
-        <span className="muted">{away ? "已离开" : "已暂停"}</span>
-        <span className="num" style={{ fontWeight: 500 }}>
-          {dur(view.paused_for + (away ? idle : 0))}
-        </span>
-      </div>
-      {away && (
+      {!back && (
+        <div className="kv">
+          <span className="muted">{away ? "已离开" : "已暂停"}</span>
+          <span className="num" style={{ fontWeight: 500 }}>
+            {dur(view.paused_for + (away ? idle : 0))}
+          </span>
+        </div>
+      )}
+      {(away || back) && (
         <label className="check">
           <input type="checkbox" checked={view.auto_resume} onChange={(e) => api.setAutoResume(e.target.checked)} />
           <span>回来后自动继续</span>
         </label>
       )}
       <RoundActions view={view}>
+        {back && (
+          <button className="btn grow" onClick={() => api.stillHere()}>
+            我没离开
+          </button>
+        )}
+        {timed && (
+          <button className="btn grow" onClick={() => api.rest(view.short_break_min)}>
+            再歇 {view.short_break_min} 分钟
+          </button>
+        )}
         <button className="btn primary grow" onClick={() => api.resume()}>
           继续专注
         </button>
       </RoundActions>
+    </>
+  );
+}
+
+/** Back from being away and the timer already runs again: say what happened, offer the correction, go away by itself. */
+function ReturnedCard({ view }: { view: TimerView }) {
+  const close = () => api.closeWindow();
+  return (
+    <>
+      <div className="card-head">
+        <span className="pill">欢迎回来</span>
+        <div className="side">
+          <span className="num">还剩 {mmss(view.remaining)}</span>
+        </div>
+      </div>
+      <div className="body-note" style={{ textAlign: "left" }}>
+        离开期间计时停了 {dur(view.returned!)}，现在接着走。离开的时间不算分心。
+      </div>
+      <div className="btn-row">
+        <button className="btn grow" title="把停掉的时间算回这一轮，这一轮里也更晚才判你离开" onClick={() => api.stillHere().then(close)}>
+          我没离开，算上
+        </button>
+        <button className="btn primary grow" onClick={() => api.resume().then(close)}>
+          好
+        </button>
+      </div>
     </>
   );
 }
@@ -419,17 +489,15 @@ function BreakCard({ view, completed }: { view: TimerView; completed: number }) 
 }
 
 /** Back to the start card to type a different task; the card may have come up without the keyboard. */
-const changeTask = () => api.stop().then(() => api.focusPopover());
-
 /** A round just finished: take the break it earned, go again, or switch task. Never loses the break. */
-function DoneCard({ view, completed, review }: { view: TimerView; completed: number; review: Review | null }) {
+function DoneCard({ view, completed, review, onChangeTask }: { view: TimerView; completed: number; review: Review | null; onChangeTask: () => void }) {
   const again = () => api.startFocus(view.task, view.last_focus_min, view.round_allow).then(() => api.closeWindow());
   const rest = () => api.startBreak().then(() => api.closeWindow());
   const m = (s: number) => Math.round(s / 60);
   return (
     <>
       <div className="card-head">
-        <span className="pill hot">番茄完成</span>
+        <span className="pill hot">{review && !review.completed ? "提前做完" : "番茄完成"}</span>
         <div className="side">
           <span>今天第 {Math.max(1, completed)} 个</span>
           <More />
@@ -444,6 +512,7 @@ function DoneCard({ view, completed, review }: { view: TimerView; completed: num
             {review.alerts > 0 ? ` · 提醒 ${review.alerts} 次` : ""}
           </div>
         )}
+        {view.overtime >= 60 && <div className="after-stats over">已经超出 {dur(view.overtime)}，这次休息还没开始。</div>}
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         <button className="big-btn" onClick={rest}>
@@ -453,7 +522,7 @@ function DoneCard({ view, completed, review }: { view: TimerView; completed: num
           <button className="btn grow" onClick={again}>
             不休息，再来一轮
           </button>
-          <button className="btn grow" onClick={changeTask}>
+          <button className="btn grow" onClick={onChangeTask}>
             换个任务
           </button>
         </div>
@@ -468,7 +537,7 @@ function DoneCard({ view, completed, review }: { view: TimerView; completed: num
 }
 
 /** A break just ran out: one click carries on with the same task. */
-function BreakOverCard({ view, completed }: { view: TimerView; completed: number }) {
+function BreakOverCard({ view, completed, onChangeTask }: { view: TimerView; completed: number; onChangeTask: () => void }) {
   const again = () => api.startFocus(view.task, view.last_focus_min, view.round_allow).then(() => api.closeWindow());
   return (
     <>
@@ -482,13 +551,14 @@ function BreakOverCard({ view, completed }: { view: TimerView; completed: number
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
         <div className="after-task">{view.task ? `接着做${quoted(view.task)}？` : "开始下一轮？"}</div>
         <div className="after-stats">还是 {view.last_focus_min} 分钟，允许列表照旧。</div>
+        {view.overtime >= 60 && <div className="after-stats over">休息已经超出 {dur(view.overtime)}。</div>}
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         <button className="big-btn" onClick={again}>
           开始专注
         </button>
         <div className="btn-row">
-          <button className="btn grow" onClick={changeTask}>
+          <button className="btn grow" onClick={onChangeTask}>
             换个任务
           </button>
           <button className="btn grow" onClick={() => api.stop().then(() => api.closeWindow())}>
@@ -505,6 +575,7 @@ function NudgeCard({ view, verdict, recent }: { view: TimerView; verdict: Verdic
   const last = verdict?.result === "distracted" ? verdict : (recent.filter((r) => r.result === "distracted").pop() ?? verdict);
   const where = last ? targetOf(last) : "别的窗口";
   const allow = last?.allow_target ?? null;
+  const page = isPage(allow ?? "");
   const rows = recent.slice(-view.threshold);
   const close = () => api.closeWindow();
   return (
@@ -530,15 +601,17 @@ function NudgeCard({ view, verdict, recent }: { view: TimerView; verdict: Verdic
         </button>
         <div className="btn-row">
           <button className="btn grow" disabled={!allow} onClick={() => allow && api.allowForRound(allow).then(close)}>
-            这算任务的一部分
+            {page ? "这个页面算任务" : "这算任务的一部分"}
           </button>
           <button className="btn grow" onClick={() => api.rest(view.short_break_min).then(close)}>
-            暂停 {view.short_break_min} 分钟
+            先歇 {view.short_break_min} 分钟
           </button>
         </div>
         {allow ? (
           <div className="hint">
-            切回去干活，这条提醒会自己消失。选「这算任务的一部分」会把 {allow} 加进额外允许，之后不再提醒。
+            {page
+              ? `切回去干活，这条提醒会自己消失。${hostOf(allow)} 在黑名单里，所以只放行当前这个页面，其他页面照旧提醒。`
+              : `切回去干活，这条提醒会自己消失。选「这算任务的一部分」会在这个任务里放行 ${allow}，之后不再提醒。`}
           </div>
         ) : (
           <div className="hint">
@@ -581,6 +654,8 @@ export default function Popover() {
   const [review, setReview] = useState<Review | null>(null);
   const [missing, setMissing] = useState<Missing>({ screen: false, ax: false });
   const [ai, setAi] = useState<Ai>("on");
+  // "换个任务": the start card, empty, over whatever idle card was showing. The break owed stays owed.
+  const [editing, setEditing] = useState(false);
   const card = useRef<HTMLDivElement>(null);
 
   const refresh = () => {
@@ -614,6 +689,7 @@ export default function Popover() {
   const phase = view?.phase;
   useEffect(() => {
     refresh();
+    if (phase !== "idle") setEditing(false);
     if (phase === "focus") return;
     setVerdict(null);
   }, [phase]);
@@ -643,11 +719,21 @@ export default function Popover() {
   const nudge = view.nudging && view.phase === "focus" && view.paused === null;
 
   let body: React.ReactNode;
+  // The card may have come up without the keyboard, and now there is something to type.
+  const changeTask = () => {
+    setEditing(true);
+    api.focusPopover();
+  };
+  const start = (fresh: boolean) => (
+    <StartCard key={fresh ? "fresh" : "start"} view={view} completed={completed} missing={missing} ai={ai} fresh={fresh} onBack={() => setEditing(false)} />
+  );
   if (nudge) body = <NudgeCard view={view} verdict={verdict} recent={recent} />;
-  else if (owed) body = <DoneCard view={view} completed={completed} review={review} />;
-  else if (view.phase === "idle" && view.break_over) body = <BreakOverCard view={view} completed={completed} />;
-  else if (view.phase === "idle") body = <StartCard key="start" view={view} completed={completed} missing={missing} ai={ai} />;
+  else if (view.phase === "idle" && editing) body = start(true);
+  else if (owed) body = <DoneCard view={view} completed={completed} review={review} onChangeTask={changeTask} />;
+  else if (view.phase === "idle" && view.break_over) body = <BreakOverCard view={view} completed={completed} onChangeTask={changeTask} />;
+  else if (view.phase === "idle") body = start(false);
   else if (view.phase !== "focus") body = <BreakCard view={view} completed={completed} />;
+  else if (view.returned != null && !view.paused) body = <ReturnedCard view={view} />;
   else if (view.paused) body = <PausedCard view={view} completed={completed} />;
   else body = <FocusCard view={view} verdict={verdict} completed={completed} />;
 

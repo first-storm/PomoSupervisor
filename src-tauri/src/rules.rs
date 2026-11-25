@@ -19,12 +19,25 @@ pub fn host_of(url: &str) -> Option<String> {
     url::Url::parse(url).ok()?.host_str().map(|h| h.to_lowercase())
 }
 
-/// Apps and sites allowed for this round only. They win over the block lists.
+/// A page as an allow entry holds it: the address without its fragment or trailing slash.
+pub fn page_key(url: &str) -> Option<String> {
+    let mut u = url::Url::parse(url).ok()?;
+    u.host_str()?;
+    u.set_fragment(None);
+    Some(u.as_str().trim_end_matches('/').to_string())
+}
+
+/// Apps, sites and single pages (entries with a scheme) allowed for this round only.
+/// They win over the block lists.
 pub fn round_allow(extra: &[String], s: &Sample) -> Option<RuleHit> {
     let host = s.url.as_deref().and_then(host_of);
+    let page = s.url.as_deref().and_then(page_key);
     extra
         .iter()
         .find(|e| {
+            if e.contains("://") {
+                return page.is_some() && page_key(e) == page;
+            }
             eq_ci(e, &s.app)
                 || s.bundle_name.as_deref().is_some_and(|b| eq_ci(e, b))
                 || host.as_deref().is_some_and(|h| e.contains('.') && domain_matches(h, e))
@@ -57,6 +70,15 @@ pub fn allow_target(app: &str, url: Option<&str>) -> Option<String> {
         Some(h) => Some(h.strip_prefix("www.").unwrap_or(&h).to_string()),
         None if is_browser(app) => None,
         None => Some(app.to_string()),
+    }
+}
+
+/// What "this is part of the task" allows during a round. A site on the block list is a
+/// known time sink, so only the page in front is let through, not the whole site.
+pub fn round_allow_target(rules: &Rules, app: &str, url: Option<&str>) -> Option<String> {
+    match url.and_then(host_of) {
+        Some(h) if rules.block_domains.iter().any(|d| domain_matches(&h, d)) => url.and_then(page_key),
+        _ => allow_target(app, url),
     }
 }
 
@@ -143,6 +165,20 @@ mod tests {
         assert!(round_allow(&["bilibili.com".into()], &s).unwrap().0);
         assert!(round_allow(&["Terminal".into()], &s).is_none());
         assert!(round_allow(&["safari".into()], &s).is_some());
+    }
+
+    #[test]
+    fn a_blocked_site_is_allowed_one_page_at_a_time() {
+        let r = Rules::default();
+        let url = "https://www.youtube.com/watch?v=abc#t=10";
+        let entry = round_allow_target(&r, "Safari", Some(url)).unwrap();
+        assert_eq!(entry, "https://www.youtube.com/watch?v=abc");
+        assert!(round_allow(&[entry.clone()], &sample("Safari", "x", Some(url))).unwrap().0);
+        assert!(round_allow(&[entry.clone()], &sample("Safari", "x", Some("https://www.youtube.com/watch?v=other"))).is_none());
+        assert!(round_allow(&[entry], &sample("Safari", "x", None)).is_none());
+        // A site nobody blocked is allowed whole, as before.
+        assert_eq!(round_allow_target(&r, "Safari", Some("https://figma.com/file/1")), Some("figma.com".into()));
+        assert_eq!(round_allow_target(&r, "Safari", None), None);
     }
 
     #[test]

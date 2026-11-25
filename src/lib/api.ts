@@ -28,6 +28,12 @@ export interface TimerView {
   /** A break just ran out and nothing has been started since. */
   break_over: boolean;
   last_focus_min: number;
+  /** Seconds a finished round or break has gone unanswered. */
+  overtime: number;
+  /** The window in front was last judged off the task. */
+  drifting: boolean;
+  /** Just back from being away: seconds the timer stood still. */
+  returned: number | null;
 }
 
 export type Stage = "idle" | "rules" | "text" | "vision" | "none" | "self";
@@ -158,6 +164,8 @@ export const api = {
   pause: () => invoke<TimerView>("pause"),
   resume: () => invoke<TimerView>("resume"),
   stop: () => invoke<TimerView>("stop"),
+  finishEarly: () => invoke<TimerView>("finish_early"),
+  stillHere: () => invoke<TimerView>("still_here"),
   rest: (minutes: number) => invoke<TimerView>("rest", { minutes }),
   allowForRound: (item: string) => invoke<TimerView>("allow_for_round", { item }),
   dismissNudge: () => invoke<TimerView>("dismiss_nudge"),
@@ -219,6 +227,10 @@ export const hostOf = (url: string | null) => {
 
 /** What to call the window a sample saw: its site, else its app. */
 export const targetOf = (v: { app: string; url: string | null }) => hostOf(v.url) ?? v.app;
+
+/** An allow entry is an app, a site, or (with a scheme) one page of a site. */
+export const isPage = (entry: string) => entry.includes("://");
+export const allowLabel = (entry: string) => (isPage(entry) ? `${hostOf(entry) ?? entry} 的一个页面` : entry);
 
 /** Open Settings on a given pane (the windows share localStorage). */
 export const openSettings = (pane?: string) => {

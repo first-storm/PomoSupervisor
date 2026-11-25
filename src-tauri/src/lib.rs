@@ -83,6 +83,7 @@ pub fn run() {
                 let _ = window.hide();
             }
             ("main", tauri::WindowEvent::Focused(false)) => windows::on_popover_blur(window),
+            ("main", tauri::WindowEvent::Focused(true)) => windows::on_popover_focus(),
             // Settings saves a moment after each edit: let it flush before the window goes.
             ("settings", tauri::WindowEvent::CloseRequested { api, .. }) => {
                 api.prevent_close();
@@ -104,6 +105,8 @@ pub fn run() {
             commands::pause,
             commands::resume,
             commands::stop,
+            commands::finish_early,
+            commands::still_here,
             commands::rest,
             commands::allow_for_round,
             commands::dismiss_nudge,

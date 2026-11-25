@@ -52,6 +52,11 @@ impl Smoother {
         false
     }
 
+    /// Reminders fired during the current distraction (1 right after the first).
+    pub fn repeats(&self) -> u32 {
+        self.repeats
+    }
+
     pub fn reset(&mut self) {
         *self = Self::default();
     }
@@ -90,6 +95,7 @@ mod tests {
         let fired: Vec<i64> = (0..150).map(|i| i * 4).filter(|&t| s.feed(Distracted, 3, t)).collect();
         // 3rd sample, then 60 s, 120 s and 300 s later.
         assert_eq!(fired, vec![8, 68, 188, 488]);
+        assert_eq!(s.repeats(), 4);
     }
 
     #[test]

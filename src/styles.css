@@ -190,6 +190,8 @@ details.why .inner { margin-top: 8px; display: flex; flex-direction: column; gap
 /* round done / break over */
 .after-task { font-size: 17px; font-weight: 600; line-height: 1.35; overflow-wrap: anywhere; }
 .after-stats { font-size: 13px; line-height: 1.5; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.after-stats.over { color: var(--tomato-ink); }
+.chip[aria-pressed="true"] { border-color: var(--tomato); color: var(--tomato-ink); }
 
 /* nudge */
 .nudge-head { display: flex; align-items: center; gap: 8px; }
