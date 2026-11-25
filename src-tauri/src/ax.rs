@@ -63,10 +63,10 @@ pub fn fingerprint(ax: &AxInfo) -> String {
 mod mac {
     use super::*;
     use core_foundation::array::{CFArray, CFArrayGetTypeID};
-    use core_foundation::base::{CFGetTypeID, CFType, CFTypeRef, TCFType};
+    use core_foundation::base::{CFGetTypeID, CFRange, CFType, CFTypeRef, TCFType};
     use core_foundation::boolean::CFBoolean;
     use core_foundation::dictionary::{CFDictionary, CFDictionaryRef};
-    use core_foundation::string::{CFString, CFStringRef};
+    use core_foundation::string::{CFString, CFStringGetCharacters, CFStringGetLength, CFStringRef};
     use core_foundation::url::CFURL;
     use std::collections::HashSet;
     use std::sync::Mutex;
@@ -126,8 +126,20 @@ mod mac {
         (err == 0 && !v.is_null()).then(|| unsafe { CFType::wrap_under_create_rule(v) })
     }
 
+    /// `CFString::to_string` asserts the whole string converts to UTF-8 and panics when it doesn't
+    /// (an unpaired surrogate; Telegram's window has such a string). This replaces bad units with U+FFFD.
+    pub(super) fn lossy(s: &CFString) -> String {
+        let len = unsafe { CFStringGetLength(s.as_concrete_TypeRef()) };
+        if len <= 0 {
+            return String::new();
+        }
+        let mut buf = vec![0u16; len as usize];
+        unsafe { CFStringGetCharacters(s.as_concrete_TypeRef(), CFRange { location: 0, length: len }, buf.as_mut_ptr()) };
+        String::from_utf16_lossy(&buf)
+    }
+
     fn string(el: &CFType, name: &str) -> Option<String> {
-        let s = attr(el, name)?.downcast::<CFString>()?.to_string();
+        let s = lossy(&attr(el, name)?.downcast::<CFString>()?);
         let s = s.trim();
         (!s.is_empty()).then(|| s.to_string())
     }
@@ -144,9 +156,9 @@ mod mac {
     fn url_of(el: &CFType) -> Option<String> {
         let v = attr(el, "AXURL")?;
         if let Some(u) = v.downcast::<CFURL>() {
-            return Some(u.get_string().to_string());
+            return Some(lossy(&u.get_string()));
         }
-        v.downcast::<CFString>().map(|s| s.to_string())
+        v.downcast::<CFString>().map(|s| lossy(&s))
     }
 
     /// Title, description and string value of one element, without repeats.
@@ -334,6 +346,19 @@ mod tests {
         assert!(s.chars().count() <= 62, "{}", s.chars().count());
         assert!(s.starts_with(&"汉".repeat(50)));
         assert_eq!(summarize(Vec::<String>::new(), 100), None);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn unpaired_surrogate_does_not_panic() {
+        use core_foundation::base::{TCFType, kCFAllocatorDefault};
+        use core_foundation::string::{CFString, CFStringCreateWithCharacters};
+        // "hi" + a lone high surrogate, as in a preview clipped in the middle of an emoji.
+        let units = [0x68u16, 0x69, 0xD83D];
+        let s = unsafe { CFString::wrap_under_create_rule(CFStringCreateWithCharacters(kCFAllocatorDefault, units.as_ptr(), 3)) };
+        assert!(std::panic::catch_unwind(|| s.to_string()).is_err(), "the crate's conversion panics on this");
+        assert_eq!(mac::lossy(&s), "hi\u{FFFD}");
+        assert_eq!(mac::lossy(&CFString::new("你好 😀")), "你好 😀");
     }
 
     #[test]
