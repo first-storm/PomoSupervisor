@@ -25,22 +25,6 @@ pub struct Picture {
     pub height: u32,
 }
 
-const KEYCHAIN_SERVICE: &str = "PomoSupervisor";
-
-pub fn get_key(slot: &str) -> Option<String> {
-    keyring::Entry::new(KEYCHAIN_SERVICE, slot).ok()?.get_password().ok().filter(|k| !k.is_empty())
-}
-
-pub fn set_key(slot: &str, key: &str) -> anyhow::Result<()> {
-    let entry = keyring::Entry::new(KEYCHAIN_SERVICE, slot)?;
-    if key.is_empty() {
-        let _ = entry.delete_credential();
-    } else {
-        entry.set_password(key)?;
-    }
-    Ok(())
-}
-
 pub fn build(cfg: &ProviderConfig, key: Option<String>) -> anyhow::Result<Judge> {
     let tr = crate::i18n::tr();
     let model = cfg.model.trim().to_string();

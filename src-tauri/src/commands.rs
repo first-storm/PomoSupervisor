@@ -195,8 +195,8 @@ pub struct ModelStatus {
 pub fn model_status(state: St) -> ModelStatus {
     let m = state.models.read().unwrap();
     ModelStatus {
-        text_key: crate::llm::get_key("text").is_some(),
-        vision_key: crate::llm::get_key("vision").is_some(),
+        text_key: crate::keys::get("text").is_some(),
+        vision_key: crate::keys::get("vision").is_some(),
         text_ready: m.text.is_some(),
         vision_ready: m.vision.is_some(),
         text_error: m.text_error.clone(),
@@ -211,7 +211,7 @@ fn slot_ok(slot: &str) -> Result<(), String> {
 #[tauri::command(async)]
 pub fn set_api_key(state: St, slot: String, key: String) -> Result<(), String> {
     slot_ok(&slot)?;
-    crate::llm::set_key(&slot, key.trim()).map_err(|e| e.to_string())?;
+    crate::keys::set(&slot, key.trim()).map_err(|e| e.to_string())?;
     state.rebuild_models();
     Ok(())
 }

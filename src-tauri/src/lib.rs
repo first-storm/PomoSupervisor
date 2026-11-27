@@ -3,6 +3,7 @@ pub mod ax;
 mod commands;
 mod decision;
 mod i18n;
+mod keys;
 mod llm;
 mod pipeline;
 mod rules;

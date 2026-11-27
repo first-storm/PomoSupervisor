@@ -246,13 +246,13 @@ impl AppState {
         let s = self.settings();
         let mut m = Models::default();
         if let Some(cfg) = &s.text_model {
-            match llm::build(cfg, llm::get_key("text")) {
+            match llm::build(cfg, crate::keys::get("text")) {
                 Ok(model) => m.text = Some(Arc::new(model)),
                 Err(e) => m.text_error = Some(e.to_string()),
             }
         }
         if let Some(cfg) = &s.vision_model {
-            match llm::build(cfg, llm::get_key("vision")) {
+            match llm::build(cfg, crate::keys::get("vision")) {
                 Ok(model) => m.vision = Some(Arc::new(model)),
                 Err(e) => m.vision_error = Some(e.to_string()),
             }
