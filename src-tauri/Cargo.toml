@@ -3,6 +3,7 @@ name = "pomo-supervisor"
 version = "0.1.0"
 description = "A menu-bar pomodoro timer that watches the frontmost window and says when you drift off the task"
 authors = ["LMFuture"]
+license = "MIT"
 edition = "2024"
 rust-version = "1.97.1"
 publish = false

@@ -3,6 +3,7 @@
   "description": "带分心监督的番茄钟：菜单栏应用，专注时看前台窗口是不是还在任务上",
   "private": true,
   "version": "0.1.0",
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "dev": "vite",

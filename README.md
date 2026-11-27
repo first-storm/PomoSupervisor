@@ -86,3 +86,7 @@ API Key 存在 macOS 钥匙串（服务名 `PomoSupervisor`）。设置与统计
 - `src/` — React 前端：`popover/` 菜单栏弹窗（开始前 · 专注中 · 暂停/离开 · 番茄完成 · 休息 · 休息结束 · 分心提醒），`windows/` 专注回顾与设置
 - 不开 Tauri 预览界面：`pnpm dev` 后打开 `http://localhost:1420/?state=start|focus|drift|away|back|returned|rest|done|early|late|break|breakover|nudge`（可加 `&ai=off|broken`、`&url=none`、`&site=blocked`）、`?view=review`、`?view=settings`（数据来自 `src/lib/mock.ts`，只在开发模式加载）
 - `icon/` — 图标源文件（Icon Composer 项目 + 合成后的 SVG），见 [icon/README.md](icon/README.md)
+
+## 许可
+
+[MIT](LICENSE)
