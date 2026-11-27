@@ -1,26 +1,26 @@
-import { locale, type Locale } from "./locale";
+import commonEnAU from "./common/en-AU";
+import commonEnUS from "./common/en-US";
+import commonJa from "./common/ja";
 import commonZhHans from "./common/zh-Hans";
 import commonZhHant from "./common/zh-Hant";
-import commonEnUS from "./common/en-US";
-import commonEnAU from "./common/en-AU";
-import commonJa from "./common/ja";
+import { type Locale, locale } from "./locale";
+import popoverEnAU from "./popover/en-AU";
+import popoverEnUS from "./popover/en-US";
+import popoverJa from "./popover/ja";
 import popoverZhHans from "./popover/zh-Hans";
 import popoverZhHant from "./popover/zh-Hant";
-import popoverEnUS from "./popover/en-US";
-import popoverEnAU from "./popover/en-AU";
-import popoverJa from "./popover/ja";
-import settingsZhHans from "./settings/zh-Hans";
-import settingsZhHant from "./settings/zh-Hant";
-import settingsEnUS from "./settings/en-US";
-import settingsEnAU from "./settings/en-AU";
-import settingsJa from "./settings/ja";
+import reviewEnAU from "./review/en-AU";
+import reviewEnUS from "./review/en-US";
+import reviewJa from "./review/ja";
 import reviewZhHans from "./review/zh-Hans";
 import reviewZhHant from "./review/zh-Hant";
-import reviewEnUS from "./review/en-US";
-import reviewEnAU from "./review/en-AU";
-import reviewJa from "./review/ja";
+import settingsEnAU from "./settings/en-AU";
+import settingsEnUS from "./settings/en-US";
+import settingsJa from "./settings/ja";
+import settingsZhHans from "./settings/zh-Hans";
+import settingsZhHant from "./settings/zh-Hant";
 
-export { locale, type Locale };
+export { type Locale, locale };
 
 const dicts = {
   "zh-Hans": { common: commonZhHans, popover: popoverZhHans, settings: settingsZhHans, review: reviewZhHans },

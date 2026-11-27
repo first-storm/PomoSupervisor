@@ -1,12 +1,20 @@
 //! The decision chain: stages run in order and the first conclusion wins.
 use futures::future::BoxFuture;
-use serde::Serialize;
 
-#[derive(Debug, Clone, Serialize, PartialEq)]
+/// The stage that settled a sample.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Decider {
+    /// This round's allow list.
+    Round,
+    Rules,
+    Text,
+    Vision,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct Verdict {
     pub focused: bool,
-    /// "round" (this round's allow list) | "rules" | "text" | "vision"
-    pub stage: &'static str,
+    pub by: Decider,
     pub reason: String,
     pub confidence: f64,
     /// Reused a cached / de-duplicated model answer.
@@ -59,8 +67,8 @@ mod tests {
         })
     }
 
-    fn decided(stage: &'static str) -> StageResult {
-        StageResult::Decided(Verdict { focused: false, stage, reason: String::new(), confidence: 1.0, cached: false })
+    fn decided(by: Decider) -> StageResult {
+        StageResult::Decided(Verdict { focused: false, by, reason: String::new(), confidence: 1.0, cached: false })
     }
 
     #[tokio::test]
@@ -69,11 +77,11 @@ mod tests {
         let (out, notes) = run_chain(vec![
             stage(StageResult::Pass(None), calls.clone()),
             stage(StageResult::Pass(Some("文本模型没把握".into())), calls.clone()),
-            stage(decided("vision"), calls.clone()),
-            stage(decided("never"), calls.clone()),
+            stage(decided(Decider::Vision), calls.clone()),
+            stage(decided(Decider::Rules), calls.clone()),
         ])
         .await;
-        assert!(matches!(out, Outcome::Decided(Verdict { stage: "vision", .. })));
+        assert!(matches!(out, Outcome::Decided(Verdict { by: Decider::Vision, .. })));
         assert_eq!(calls.load(Ordering::SeqCst), 3);
         assert_eq!(notes, vec!["文本模型没把握".to_string()]);
     }
@@ -81,7 +89,7 @@ mod tests {
     #[tokio::test]
     async fn away_short_circuits() {
         let calls = Arc::new(AtomicU32::new(0));
-        let (out, _) = run_chain(vec![stage(StageResult::Away, calls.clone()), stage(decided("rules"), calls.clone())]).await;
+        let (out, _) = run_chain(vec![stage(StageResult::Away, calls.clone()), stage(decided(Decider::Rules), calls.clone())]).await;
         assert_eq!(out, Outcome::Away);
         assert_eq!(calls.load(Ordering::SeqCst), 1);
     }

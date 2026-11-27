@@ -19,7 +19,7 @@ const zhHans = {
   timeline: "时间线",
   /** One stretch of the timeline for screen readers, e.g. "专注 3 分钟". */
   segment: (what: string, dur: string) => `${what} ${dur}`,
-  timelineAria: (start: string, segments: string[]) => `时间线：${start} 起` + segments.join("，"),
+  timelineAria: (start: string, segments: string[]) => `时间线：${start} 起${segments.join("，")}`,
   distractions: "分心片段",
   noDistractions: "这一轮没有分心。",
   distractionsHint: "判错了就点「其实在工作」，对应的 App 或域名会进白名单。",

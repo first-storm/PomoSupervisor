@@ -18,7 +18,7 @@ const zhHant = {
   awayUnit: (_minutes: number) => "分鐘 · 不計入番茄",
   timeline: "時間軸",
   segment: (what: string, dur: string) => `${what} ${dur}`,
-  timelineAria: (start: string, segments: string[]) => `時間軸：${start} 起，` + segments.join("，"),
+  timelineAria: (start: string, segments: string[]) => `時間軸：${start} 起，${segments.join("，")}`,
   distractions: "分心片段",
   noDistractions: "這一輪沒有分心。",
   distractionsHint: "判斷錯了就點「其實在工作」，對應的 App 或網域會加入白名單。",

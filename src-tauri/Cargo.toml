@@ -1,16 +1,14 @@
 [package]
 name = "pomo-supervisor"
 version = "0.1.0"
-description = "A Tauri App"
-authors = ["you"]
+description = "A menu-bar pomodoro timer that watches the frontmost window and says when you drift off the task"
+authors = ["LMFuture"]
 edition = "2024"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+rust-version = "1.97.1"
+publish = false
 
 [lib]
-# The `_lib` suffix may seem redundant but it is necessary
-# to make the lib name unique and wouldn't conflict with the bin name.
-# This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
+# Not the package name: a lib and a bin of the same name collide on Windows (rust-lang/cargo#8519).
 name = "pomo_supervisor_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
@@ -48,8 +46,13 @@ objc2 = "0.6"
 core-foundation = "0.10"
 objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSApplication", "NSResponder"] }
 
+[lints.rust]
+unsafe_op_in_unsafe_fn = "deny"
 
-# Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
+[lints.clippy]
+dbg_macro = "warn"
+todo = "warn"
+
 [profile.release]
 codegen-units = 1
 lto = true

@@ -1,6 +1,6 @@
 # PomoSupervisor
 
-带“分心监督”的番茄钟（Tauri 2 + React + rig-core）。专注期间每几秒采样一次前台窗口，按决策链判断你是否分心：
+带“分心监督”的番茄钟，macOS 菜单栏应用（Tauri 2 + React + rig-core）。专注期间每几秒采样一次前台窗口，按决策链判断你是否分心：
 
 ```
 采样（App · 标题 · URL · 空闲）
@@ -11,6 +11,8 @@
  → 平滑器：连续 N 次分心才提醒（菜单栏弹出提醒 + 提示音 + 记入统计）；
    回到任务提醒自动收起，一直不回来则隔 1 / 2 / 5 分钟再提醒
 ```
+
+最初的设计草图在 [docs/decision-chain.svg](docs/decision-chain.svg)。
 
 计时之外的几条规矩：
 
@@ -24,12 +26,28 @@
 
 ## 运行
 
+需要 macOS 12+、Rust 1.97.1+、Node 22.12+、pnpm，以及 Xcode Command Line Tools。用 Nix 的话工具链都在 `flake.nix` 里：`nix develop`（或 `direnv allow`）进去就有，下面的命令也可以写成 `nix develop -c pnpm …`。
+
 ```sh
 pnpm install
 pnpm tauri dev        # 开发
-pnpm tauri build      # 打包 .app
-cd src-tauri && cargo test
+pnpm tauri build      # 打包 .app / .dmg
 ```
+
+## 开发
+
+```sh
+pnpm check            # 提交前跑这个：下面几项依次全跑一遍，CI 跑的也是它们
+pnpm lint             # Biome：前端的格式与 lint
+pnpm typecheck        # tsc
+pnpm check:rust       # cargo fmt --check、clippy（警告即失败）、cargo test；要先有 dist/（pnpm build）
+pnpm fix              # 自动修：biome check --write + cargo fmt
+```
+
+- 格式由工具说了算：Rust 按 `src-tauri/rustfmt.toml`，前端按 `biome.jsonc`（关掉的几条 lint 规则各有一句理由）。`src/styles.css` 一条规则一行，不走格式化。
+- 存进磁盘和跨进程的名字不能随手改：`settings.json` 的字段、SQLite 的表和 `stage` / `result` 的取值、钥匙串服务名、Tauri 命令与事件名。`stage` / `result` 的取值有测试钉住。
+- `flake.nix` 的 shell 故意不带 C 工具链（`mkShellNoCC`）：应用要用系统的 clang 链接本机的 macOS SDK。换成带 nixpkgs SDK 的 `mkShell` 会链到旧 SDK，而 AppKit 是按链接的 SDK 决定外观和行为的。
+- `src-tauri/examples/` 是手动跑的原生小工具：`cargo run --example smoke`（前台窗口、空闲时间、截图）、`ax_dump`（辅助功能能读到什么）、`shot_window`（给本应用的窗口截图）。
 
 ## 权限（macOS）
 
@@ -60,10 +78,11 @@ API Key 存在 macOS 钥匙串（服务名 `PomoSupervisor`）。设置与统计
 
 ## 代码结构
 
-- `src-tauri/src/app.rs` — 状态、1 秒主循环、一次采样走完决策链
+- `src-tauri/src/app/` — 应用状态和一轮番茄上的各种操作（`mod.rs`），拆出去的有：`ticker.rs` 1 秒主循环 · `chain.rs` 一次采样走完决策链及其后果 · `waiting.rs` 没人理的卡片何时收起、何时再催、何时作罢 · `tray.rs` 菜单栏图标、提示音、通知
+- `commands.rs` — 给前端的 Tauri 命令；`lib.rs` — 启动、托盘菜单、窗口事件
 - `src-tauri/src/i18n/` — 后端各语言的文字与提示词（每种语言一张 `Strings` 表，缺一条编译不过）；`src/i18n/` — 前端字典（`zh-Hans` 为源，其他语言 `satisfies` 它的类型）；`src-tauri/l10n/` — 权限弹窗文案
 - `pipeline.rs` 决策链执行器 · `rules.rs` 规则 · `llm.rs` rig 模型与提示词 · `decision.rs` Decision 模型（System One / OpenAI Decisions） · `vision.rs` 截图与 pHash · `smoother.rs` 平滑器 · `timer.rs` 计时状态机 · `store.rs` SQLite 统计
 - `windows.rs` — 菜单栏弹窗的定位、失焦隐藏，以及“专注回顾”“设置”两个窗口
 - `src/` — React 前端：`popover/` 菜单栏弹窗（开始前 · 专注中 · 暂停/离开 · 番茄完成 · 休息 · 休息结束 · 分心提醒），`windows/` 专注回顾与设置
 - 不开 Tauri 预览界面：`pnpm dev` 后打开 `http://localhost:1420/?state=start|focus|drift|away|back|returned|rest|done|early|late|break|breakover|nudge`（可加 `&ai=off|broken`、`&url=none`、`&site=blocked`）、`?view=review`、`?view=settings`（数据来自 `src/lib/mock.ts`，只在开发模式加载）
-- `icon/` — 图标源文件（Icon Composer 分层 + 合成后的 SVG）
+- `icon/` — 图标源文件（Icon Composer 项目 + 合成后的 SVG），见 [icon/README.md](icon/README.md)

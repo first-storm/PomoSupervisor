@@ -149,11 +149,11 @@ mod tests {
     fn order_of_rules() {
         let r = Rules::default();
         // An editor is allowed even when its title has a blocked keyword.
-        assert_eq!(evaluate(&r, &sample("Code", "bilibili_scraper.rs", None)).unwrap().0, true);
-        assert_eq!(evaluate(&r, &sample("Google Chrome", "x", Some("https://www.youtube.com/watch?v=1"))).unwrap().0, false);
-        assert_eq!(evaluate(&r, &sample("Safari", "x", Some("https://docs.rs/tokio"))).unwrap().0, true);
+        assert!(evaluate(&r, &sample("Code", "bilibili_scraper.rs", None)).unwrap().0);
+        assert!(!evaluate(&r, &sample("Google Chrome", "x", Some("https://www.youtube.com/watch?v=1"))).unwrap().0);
+        assert!(evaluate(&r, &sample("Safari", "x", Some("https://docs.rs/tokio"))).unwrap().0);
         // Firefox gives no URL: the title keyword still catches it.
-        assert_eq!(evaluate(&r, &sample("Firefox", "【游戏】哔哩哔哩 — Mozilla Firefox", None)).unwrap().0, false);
+        assert!(!evaluate(&r, &sample("Firefox", "【游戏】哔哩哔哩 — Mozilla Firefox", None)).unwrap().0);
         assert!(evaluate(&r, &sample("Firefox", "Some random article", None)).is_none());
     }
 
@@ -171,8 +171,8 @@ mod tests {
         let url = "https://www.youtube.com/watch?v=abc#t=10";
         let entry = round_allow_target(&r, "Safari", Some(url)).unwrap();
         assert_eq!(entry, "https://www.youtube.com/watch?v=abc");
-        assert!(round_allow(&[entry.clone()], &sample("Safari", "x", Some(url))).unwrap().0);
-        assert!(round_allow(&[entry.clone()], &sample("Safari", "x", Some("https://www.youtube.com/watch?v=other"))).is_none());
+        assert!(round_allow(std::slice::from_ref(&entry), &sample("Safari", "x", Some(url))).unwrap().0);
+        assert!(round_allow(std::slice::from_ref(&entry), &sample("Safari", "x", Some("https://www.youtube.com/watch?v=other"))).is_none());
         assert!(round_allow(&[entry], &sample("Safari", "x", None)).is_none());
         // A site nobody blocked is allowed whole, as before.
         assert_eq!(round_allow_target(&r, "Safari", Some("https://figma.com/file/1")), Some("figma.com".into()));
@@ -208,6 +208,6 @@ mod tests {
         let r = Rules::default();
         let mut s = sample("Electron", "main.ts", None);
         s.bundle_name = Some("Visual Studio Code".into());
-        assert_eq!(evaluate(&r, &s).unwrap().0, true);
+        assert!(evaluate(&r, &s).unwrap().0);
     }
 }

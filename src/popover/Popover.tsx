@@ -1,22 +1,22 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { Dial, MoreIcon, PauseIcon, PlusIcon, StageBadge, TimerGlyph } from "../components/ui";
+import { t } from "../i18n";
 import {
   allowLabel,
   api,
   hms,
-  isPage,
   hostOf,
+  isPage,
   mmss,
   onPopoverMode,
   onTick,
   onVerdict,
   openSettings,
-  targetOf,
   type Review,
   type TimerView,
+  targetOf,
   type VerdictEvent,
 } from "../lib/api";
-import { Dial, MoreIcon, PauseIcon, PlusIcon, StageBadge, TimerGlyph } from "../components/ui";
-import { t } from "../i18n";
 
 const p = t.popover;
 const dur = t.common.dur;
@@ -25,7 +25,7 @@ const quoted = (task: string) => p.quote(task.length > 28 ? `${task.slice(0, 27)
 
 function More() {
   return (
-    <button className="icon-btn" aria-label={p.more} onClick={() => api.popoverMenu()}>
+    <button type="button" className="icon-btn" aria-label={p.more} onClick={() => api.popoverMenu()}>
       <MoreIcon />
     </button>
   );
@@ -45,6 +45,7 @@ function PermissionBanner({ missing }: { missing: Missing }) {
         <p>{p.perm.axBody}</p>
         <div className="btn-row">
           <button
+            type="button"
             className="btn small"
             onClick={async () => {
               await api.requestAccessibility();
@@ -63,6 +64,7 @@ function PermissionBanner({ missing }: { missing: Missing }) {
       <p>{p.perm.screenBody}</p>
       <div className="btn-row">
         <button
+          type="button"
           className="btn small"
           onClick={async () => {
             await api.requestScreenRecording();
@@ -72,11 +74,11 @@ function PermissionBanner({ missing }: { missing: Missing }) {
           {p.perm.grant}
         </button>
         {missing.ax && (
-          <button className="btn small" onClick={() => api.openPrivacy("accessibility")}>
+          <button type="button" className="btn small" onClick={() => api.openPrivacy("accessibility")}>
             {p.perm.accessibility}
           </button>
         )}
-        <button className="btn small" onClick={() => api.openPrivacy("automation")}>
+        <button type="button" className="btn small" onClick={() => api.openPrivacy("automation")}>
           {p.perm.browserUrls}
         </button>
       </div>
@@ -103,7 +105,7 @@ function Supervision({ ai, task }: { ai: Ai; task: string }) {
     <div className={ai === "broken" ? "sup bad" : "sup"}>
       <span className="dot" aria-hidden="true" />
       <span className="txt">{ai === "broken" ? p.sup.broken : p.sup.off}</span>
-      <button className="link" onClick={() => openSettings("models")}>
+      <button type="button" className="link" onClick={() => openSettings("models")}>
         {ai === "broken" ? p.sup.check : p.sup.configure}
       </button>
     </div>
@@ -174,7 +176,7 @@ function StartCard({
         <div className="label">{p.start.duration}</div>
         <div className="segmented" role="group" aria-label={p.start.duration}>
           {presets.map((m) => (
-            <button key={m} aria-pressed={minutes === m} onClick={() => setMinutes(m)}>
+            <button type="button" key={m} aria-pressed={minutes === m} onClick={() => setMinutes(m)}>
               {t.common.minutes(m)}
             </button>
           ))}
@@ -185,6 +187,7 @@ function StartCard({
         <div className="chips">
           {allow.map((a) => (
             <button
+              type="button"
               key={a}
               className="chip"
               aria-label={p.start.remove(allowLabel(a))}
@@ -198,7 +201,7 @@ function StartCard({
             </button>
           ))}
           {adding === null ? (
-            <button className="chip add" onClick={() => setAdding("")}>
+            <button type="button" className="chip add" onClick={() => setAdding("")}>
               <PlusIcon />
               <span>{p.start.add}</span>
             </button>
@@ -221,7 +224,7 @@ function StartCard({
         <div className="hint">{p.start.allowedHint}</div>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        <button className="big-btn" onClick={start}>
+        <button type="button" className="big-btn" onClick={start}>
           {p.start.startFocus}
         </button>
         <div className="center-note">{completed ? p.start.doneTodayEnter(completed) : p.start.enter}</div>
@@ -229,11 +232,11 @@ function StartCard({
       {fresh && (
         <div className="links">
           {view.next_break_min != null && (
-            <button className="link" onClick={() => api.startBreak().then(() => api.closeWindow())}>
+            <button type="button" className="link" onClick={() => api.startBreak().then(() => api.closeWindow())}>
               {p.start.breakFirst(view.next_break_min)}
             </button>
           )}
-          <button className="link" onClick={onBack}>
+          <button type="button" className="link" onClick={onBack}>
             {p.start.back}
           </button>
         </div>
@@ -270,6 +273,7 @@ function Judgement({ v }: { v: VerdictEvent | null }) {
         </div>
         {off && v.allow_target && (
           <button
+            type="button"
             className="btn small"
             title={isPage(v.allow_target) ? p.judge.allowPageTitle : p.judge.allowTargetTitle(v.allow_target)}
             onClick={() => api.allowForRound(v.allow_target!).then(() => api.closeWindow())}
@@ -308,15 +312,15 @@ function RoundActions({ view, children }: { view: TimerView; children: React.Rea
     return (
       <div className="confirm">
         <div className="body-note">{p.end.ask(dur(elapsed))}</div>
-        <button className="btn primary" style={{ height: 34, borderRadius: 9 }} onClick={() => api.finishEarly()}>
+        <button type="button" className="btn primary" style={{ height: 34, borderRadius: 9 }} onClick={() => api.finishEarly()}>
           {p.end.taskDone}
         </button>
         <div className="hint">{elapsed * 2 >= view.total ? p.end.countsHint : p.end.notHalfHint}</div>
         <div className="btn-row">
-          <button className="btn grow danger" onClick={() => api.stop()}>
+          <button type="button" className="btn grow danger" onClick={() => api.stop()}>
             {p.end.giveUp}
           </button>
-          <button className="btn grow" onClick={() => setAsking(false)}>
+          <button type="button" className="btn grow" onClick={() => setAsking(false)}>
             {p.end.keepFocusing}
           </button>
         </div>
@@ -325,7 +329,7 @@ function RoundActions({ view, children }: { view: TimerView; children: React.Rea
   }
   return (
     <div className="btn-row">
-      <button className="btn" onClick={() => setAsking(true)}>
+      <button type="button" className="btn" onClick={() => setAsking(true)}>
         {p.end.end}
       </button>
       {children}
@@ -357,7 +361,7 @@ function FocusCard({ view, verdict, completed }: { view: TimerView; verdict: Ver
       </div>
       <Judgement v={verdict} />
       <RoundActions view={view}>
-        <button className="btn grow" onClick={() => api.pause()}>
+        <button type="button" className="btn grow" onClick={() => api.pause()}>
           {p.focus.pauseFor(view.short_break_min)}
         </button>
       </RoundActions>
@@ -408,16 +412,16 @@ function PausedCard({ view, completed }: { view: TimerView; completed: number })
       )}
       <RoundActions view={view}>
         {back && (
-          <button className="btn grow" onClick={() => api.stillHere()}>
+          <button type="button" className="btn grow" onClick={() => api.stillHere()}>
             {p.paused.stillHere}
           </button>
         )}
         {timed && (
-          <button className="btn grow" onClick={() => api.rest(view.short_break_min)}>
+          <button type="button" className="btn grow" onClick={() => api.rest(view.short_break_min)}>
             {p.paused.restMore(view.short_break_min)}
           </button>
         )}
-        <button className="btn primary grow" onClick={() => api.resume()}>
+        <button type="button" className="btn primary grow" onClick={() => api.resume()}>
           {p.paused.resume}
         </button>
       </RoundActions>
@@ -440,10 +444,10 @@ function ReturnedCard({ view }: { view: TimerView }) {
         {p.returned.note(dur(view.returned!))}
       </div>
       <div className="btn-row">
-        <button className="btn grow" title={p.returned.countItTitle} onClick={() => api.stillHere().then(close)}>
+        <button type="button" className="btn grow" title={p.returned.countItTitle} onClick={() => api.stillHere().then(close)}>
           {p.returned.countIt}
         </button>
-        <button className="btn primary grow" onClick={() => api.resume().then(close)}>
+        <button type="button" className="btn primary grow" onClick={() => api.resume().then(close)}>
           {p.returned.ok}
         </button>
       </div>
@@ -469,10 +473,14 @@ function BreakCard({ view, completed }: { view: TimerView; completed: number }) 
       </Dial>
       <div className="body-note">{p.rest.note()}</div>
       <div className="btn-row">
-        <button className="btn grow" onClick={() => api.openWindow("review")}>
+        <button type="button" className="btn grow" onClick={() => api.openWindow("review")}>
           {p.rest.review}
         </button>
-        <button className="btn grow" onClick={() => api.startFocus(view.task, view.last_focus_min, view.round_allow).then(() => api.closeWindow())}>
+        <button
+          type="button"
+          className="btn grow"
+          onClick={() => api.startFocus(view.task, view.last_focus_min, view.round_allow).then(() => api.closeWindow())}
+        >
           {p.rest.skip}
         </button>
       </div>
@@ -507,20 +515,20 @@ function DoneCard({ view, completed, review, onChangeTask }: { view: TimerView; 
         {view.overtime >= 60 && <div className="after-stats over">{p.done.overtime(dur(view.overtime))}</div>}
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        <button className="big-btn" onClick={rest}>
+        <button type="button" className="big-btn" onClick={rest}>
           {p.done.takeBreak(view.next_break_min!)}
         </button>
         <div className="btn-row">
-          <button className="btn grow" onClick={again}>
+          <button type="button" className="btn grow" onClick={again}>
             {p.done.again}
           </button>
-          <button className="btn grow" onClick={onChangeTask}>
+          <button type="button" className="btn grow" onClick={onChangeTask}>
             {p.done.changeTask}
           </button>
         </div>
       </div>
       <div className="links">
-        <button className="link" onClick={() => api.openWindow("review")}>
+        <button type="button" className="link" onClick={() => api.openWindow("review")}>
           {p.done.reviewRound}
         </button>
       </div>
@@ -546,14 +554,14 @@ function BreakOverCard({ view, completed, onChangeTask }: { view: TimerView; com
         {view.overtime >= 60 && <div className="after-stats over">{p.breakOver.overtime(dur(view.overtime))}</div>}
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        <button className="big-btn" onClick={again}>
+        <button type="button" className="big-btn" onClick={again}>
           {p.breakOver.startFocus}
         </button>
         <div className="btn-row">
-          <button className="btn grow" onClick={onChangeTask}>
+          <button type="button" className="btn grow" onClick={onChangeTask}>
             {p.done.changeTask}
           </button>
-          <button className="btn grow" onClick={() => api.stop().then(() => api.closeWindow())}>
+          <button type="button" className="btn grow" onClick={() => api.stop().then(() => api.closeWindow())}>
             {p.breakOver.stop}
           </button>
         </div>
@@ -586,14 +594,14 @@ function NudgeCard({ view, verdict, recent }: { view: TimerView; verdict: Verdic
         <div className="nudge-body">{p.nudge.body(where, view.task ? quoted(view.task) : null)}</div>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        <button className="btn primary" style={{ height: 34, borderRadius: 9 }} onClick={() => api.dismissNudge().then(close)}>
+        <button type="button" className="btn primary" style={{ height: 34, borderRadius: 9 }} onClick={() => api.dismissNudge().then(close)}>
           {p.nudge.backToTask}
         </button>
         <div className="btn-row">
-          <button className="btn grow" disabled={!allow} onClick={() => allow && api.allowForRound(allow).then(close)}>
+          <button type="button" className="btn grow" disabled={!allow} onClick={() => allow && api.allowForRound(allow).then(close)}>
             {page ? p.nudge.pagePart : p.nudge.part}
           </button>
-          <button className="btn grow" onClick={() => api.rest(view.short_break_min).then(close)}>
+          <button type="button" className="btn grow" onClick={() => api.rest(view.short_break_min).then(close)}>
             {p.nudge.restFor(view.short_break_min)}
           </button>
         </div>
@@ -602,7 +610,7 @@ function NudgeCard({ view, verdict, recent }: { view: TimerView; verdict: Verdic
         ) : (
           <div className="hint">
             {p.nudge.noUrlHint}{" "}
-            <button className="link" style={{ fontSize: 11 }} onClick={() => api.openPrivacy("automation")}>
+            <button type="button" className="link" style={{ fontSize: 11 }} onClick={() => api.openPrivacy("automation")}>
               {p.nudge.allowUrls}
             </button>
           </div>
@@ -654,6 +662,7 @@ export default function Popover() {
     });
   };
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: subscribes once for the life of the popover.
   useEffect(() => {
     document.body.classList.add("popover");
     api.getState().then(setView);
@@ -668,11 +677,15 @@ export default function Popover() {
       }),
       onPopoverMode(refresh),
     ];
-    return () => subs.forEach((p) => p.then((un) => un()));
+    return () =>
+      subs.forEach((p) => {
+        p.then((un) => un());
+      });
   }, []);
 
   // Today's count changes when a round ends; the verdict resets when a new one starts.
   const phase = view?.phase;
+  // biome-ignore lint/correctness/useExhaustiveDependencies: runs on a phase change; refresh is a new function every render.
   useEffect(() => {
     refresh();
     if (phase !== "idle") setEditing(false);
@@ -691,6 +704,7 @@ export default function Popover() {
   }, [owed]);
 
   // The window is exactly the card: tell Rust whenever the card changes size.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: runs once the card exists, which is when the view first arrives.
   useLayoutEffect(() => {
     const el = card.current;
     if (!el) return;

@@ -1,18 +1,18 @@
 import { useEffect, useRef, useState } from "react";
+import { LockIcon } from "../components/ui";
+import { t } from "../i18n";
 import {
   api,
   errText,
+  type ModelStatus,
   onWindowClosing,
   onWindowShown,
-  type ModelStatus,
   type ProviderConfig,
   type ProviderKind,
   type Rules,
   type Settings,
   type Slot,
 } from "../lib/api";
-import { LockIcon } from "../components/ui";
-import { t } from "../i18n";
 
 type PaneId = "general" | "chain" | "lists" | "models" | "privacy";
 const PANES: [PaneId, string][] = [
@@ -179,12 +179,12 @@ function ChainPane({ s, update, go }: { s: Settings; update: Update; go: (p: Pan
           <Choice label={t.settings.chain.idleLabel} value={s.idle_secs} options={[60, 120, 300, 600]} fmt={span} onChange={(n) => update({ idle_secs: n })} />
         </Row>
         <Row step={3} name={t.settings.chain.rules} tag="local" desc={t.settings.chain.rulesDesc(blocked, allowed)}>
-          <button className="btn small" style={{ fontSize: 13 }} onClick={() => go("lists")}>
+          <button type="button" className="btn small" style={{ fontSize: 13 }} onClick={() => go("lists")}>
             {t.settings.chain.editLists}
           </button>
         </Row>
         <Row step={4} name={t.settings.chain.text} tag="model" desc={t.settings.chain.textDesc}>
-          <button className="select" onClick={() => go("models")}>
+          <button type="button" className="select" onClick={() => go("models")}>
             {modelName(s.text_model)}
           </button>
           <input
@@ -196,7 +196,7 @@ function ChainPane({ s, update, go }: { s: Settings; update: Update; go: (p: Pan
           />
         </Row>
         <Row step={5} name={t.settings.chain.vision} tag="model" desc={t.settings.chain.visionDesc}>
-          <button className="select" onClick={() => go("models")}>
+          <button type="button" className="select" onClick={() => go("models")}>
             {modelName(s.vision_model)}
           </button>
           <input
@@ -332,7 +332,7 @@ function Provider({
           <label>{t.settings.provider.quickFill}</label>
           <div className="chips" role="group" aria-label={t.settings.provider.presets}>
             {PRESETS.filter((p) => p.slots.includes(slot)).map((p) => (
-              <button key={p.name} className="chip" aria-pressed={sameCfg(cfg, p.cfg(slot))} onClick={() => onChange(p.cfg(slot))}>
+              <button type="button" key={p.name} className="chip" aria-pressed={sameCfg(cfg, p.cfg(slot))} onClick={() => onChange(p.cfg(slot))}>
                 {p.name}
               </button>
             ))}
@@ -368,6 +368,7 @@ function Provider({
                   onChange={(e) => setKey(e.target.value)}
                 />
                 <button
+                  type="button"
                   className="btn small"
                   disabled={!key}
                   onClick={async () => {
@@ -389,6 +390,7 @@ function Provider({
           <span />
           <div className="inline">
             <button
+              type="button"
               className="btn small"
               disabled={busy}
               onClick={async () => {
@@ -421,6 +423,7 @@ function Provider({
 function ModelsPane({ s, update }: { s: Settings; update: Update }) {
   const [status, setStatus] = useState<ModelStatus | null>(null);
   const refresh = () => api.modelStatus().then(setStatus);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the model settings are the trigger: status is re-read when either changes.
   useEffect(() => {
     refresh();
   }, [s.text_model, s.vision_model]);
@@ -483,6 +486,7 @@ function PrivacyPane({ s, update }: { s: Settings; update: Update }) {
       setGranted(p.screen_recording);
       setAxGranted(p.accessibility);
     });
+  // biome-ignore lint/correctness/useExhaustiveDependencies: polls from mount to unmount.
   useEffect(() => {
     check();
     const t = setInterval(check, 4000);
@@ -501,6 +505,7 @@ function PrivacyPane({ s, update }: { s: Settings; update: Update }) {
           </span>
           {!granted && (
             <button
+              type="button"
               className="btn small"
               onClick={async () => {
                 await api.requestScreenRecording();
@@ -519,6 +524,7 @@ function PrivacyPane({ s, update }: { s: Settings; update: Update }) {
           )}
           {s.ax_enabled && !axGranted && (
             <button
+              type="button"
               className="btn small"
               onClick={async () => {
                 await api.requestAccessibility();
@@ -537,7 +543,7 @@ function PrivacyPane({ s, update }: { s: Settings; update: Update }) {
           />
         </Row>
         <Row name={t.settings.privacy.automation} desc={t.settings.privacy.automationDesc}>
-          <button className="btn small" onClick={() => api.openPrivacy("automation")}>
+          <button type="button" className="btn small" onClick={() => api.openPrivacy("automation")}>
             {t.settings.privacy.openSettings}
           </button>
         </Row>
@@ -578,6 +584,7 @@ export default function SettingsWindow() {
     }
   };
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: subscribes once; save reads the latest settings through a ref.
   useEffect(() => {
     const load = () =>
       api.getSettings().then((x) => {
@@ -605,7 +612,10 @@ export default function SettingsWindow() {
         api.closeWindow();
       }),
     ];
-    return () => subs.forEach((p) => p.then((un) => un()));
+    return () =>
+      subs.forEach((p) => {
+        p.then((un) => un());
+      });
   }, []);
 
   // No Save button: every change is saved a moment after it's made.
@@ -623,7 +633,7 @@ export default function SettingsWindow() {
     <div className="settings">
       <nav className="sidebar" aria-label={t.settings.sidebar} data-tauri-drag-region>
         {PANES.map(([id, name]) => (
-          <button key={id} aria-current={pane === id ? "page" : undefined} onClick={() => setPane(id)}>
+          <button type="button" key={id} aria-current={pane === id ? "page" : undefined} onClick={() => setPane(id)}>
             {name}
           </button>
         ))}

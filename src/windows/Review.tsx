@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { api, errText, hm, hostOf, onTick, onWindowShown, type Distraction, type Review, type TimerView } from "../lib/api";
 import { intlTag, t } from "../i18n";
+import { api, type Distraction, errText, hm, hostOf, onTick, onWindowShown, type Review, type TimerView } from "../lib/api";
 
 const mins = (secs: number) => Math.round(secs / 60);
 const short = t.common.dur;
@@ -49,6 +49,7 @@ function DistractionRow({ d }: { d: Distraction }) {
         </div>
       </div>
       <button
+        type="button"
         className="btn small"
         disabled={state?.ok}
         onClick={() =>
@@ -162,7 +163,10 @@ export default function ReviewWindow() {
     load();
     api.getState().then(setView);
     const subs = [onWindowShown(load), onTick(setView)];
-    return () => subs.forEach((p) => p.then((un) => un()));
+    return () =>
+      subs.forEach((p) => {
+        p.then((un) => un());
+      });
   }, []);
 
   const again = async () => {
@@ -252,12 +256,12 @@ export default function ReviewWindow() {
 
             <div className="review-foot">
               {owed != null && (
-                <button className="btn" onClick={rest}>
+                <button type="button" className="btn" onClick={rest}>
                   {t.review.takeBreak(owed)}
                 </button>
               )}
               {view && view.phase !== "focus" && (
-                <button className="btn primary" onClick={again}>
+                <button type="button" className="btn primary" onClick={again}>
                   {t.review.again}
                 </button>
               )}

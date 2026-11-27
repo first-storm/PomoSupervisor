@@ -10,7 +10,8 @@ const q = new URLSearchParams(location.search);
 const state = q.get("state") ?? "focus";
 const now = Math.floor(Date.now() / 1000);
 // /?view=settings&pane=models opens Settings on that pane.
-if (q.get("pane")) localStorage.setItem("settings.pane", q.get("pane")!);
+const pane = q.get("pane");
+if (pane) localStorage.setItem("settings.pane", pane);
 
 if ((q.get("view") ?? "main") === "main") {
   document.documentElement.style.cssText = "background:#CCD2D8;padding:24px 40px;height:auto";

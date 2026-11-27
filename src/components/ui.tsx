@@ -1,6 +1,6 @@
-import { DIAL_TICKS } from "./dial-consts";
-import type { VerdictEvent } from "../lib/api";
 import { t } from "../i18n";
+import type { VerdictEvent } from "../lib/api";
+import { DIAL_TICKS } from "./dial-consts";
 
 export function MoreIcon() {
   return (
@@ -85,6 +85,7 @@ export function Dial({ progress, distracted = [], tone, children }: { progress: 
           const bg = past ? (marks.has(i) ? "#2B2D33" : done) : i === current && tone !== "dim" ? done : todo;
           const style: React.CSSProperties = { transform: `rotate(${(i * 360) / DIAL_TICKS}deg)`, background: bg };
           if (i === current && tone !== "dim") style.height = 24;
+          // biome-ignore lint/suspicious/noArrayIndexKey: a fixed ring of ticks; the index is the tick.
           return <span key={i} className="tk" style={style} />;
         })}
       </div>
