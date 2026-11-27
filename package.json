@@ -1,6 +1,6 @@
 {
   "name": "pomo-supervisor",
-  "description": "带分心监督的番茄钟：菜单栏应用，专注时看前台窗口是不是还在任务上",
+  "description": "A menu-bar pomodoro timer that watches the frontmost window and says when you drift off the task",
   "private": true,
   "version": "0.1.0",
   "license": "MIT",
