@@ -27,8 +27,7 @@ const enUS = {
   tagLocal: "Local",
   tagModel: "Uses a model",
   everySecs: (n: number) => (n === 1 ? "Every second" : `Every ${n} seconds`),
-  span: (n: number) =>
-    n % 60 === 0 ? (n === 60 ? "1 minute" : `${n / 60} minutes`) : n === 1 ? "1 second" : `${n} seconds`,
+  span: (n: number) => (n % 60 === 0 ? (n === 60 ? "1 minute" : `${n / 60} minutes`) : n === 1 ? "1 second" : `${n} seconds`),
   sidebar: "Settings sections",
   saveFailed: (err: string) => `Couldn’t save: ${err}`,
   general: {
@@ -40,8 +39,7 @@ const enUS = {
     shortBreak: "Short break",
     shortBreakDesc: "The break after each pomodoro. Pausing during focus lasts this long too, then focus resumes on its own",
     longBreak: "Long break",
-    longBreakDesc: (every: number) =>
-      every === 1 ? "Take a long break after every pomodoro" : `After every ${every} pomodoros, take a long break instead`,
+    longBreakDesc: (every: number) => (every === 1 ? "Take a long break after every pomodoro" : `After every ${every} pomodoros, take a long break instead`),
     longBreakEvery: "Long break interval",
     longBreakEveryDesc: "How many pomodoros before a long break",
     longBreakEveryUnit: (n: number) => (n === 1 ? "pomodoro" : "pomodoros"),
@@ -62,8 +60,7 @@ const enUS = {
       "With no keyboard or mouse input for this long, you’re away: the timer pauses and it doesn’t count as distracted. Playing a video or being on a call doesn’t count as away",
     idleLabel: "Idle threshold",
     rules: "Rule matching",
-    rulesDesc: (blocked: number, allowed: number) =>
-      `Apps and domains on a list get a verdict right away · ${blocked} blocked, ${allowed} allowed`,
+    rulesDesc: (blocked: number, allowed: number) => `Apps and domains on a list get a verdict right away · ${blocked} blocked, ${allowed} allowed`,
     editLists: "Edit lists…",
     text: "Text model",
     textDesc: "When no rule matches, sends the title, URL, window text and task description to the model",

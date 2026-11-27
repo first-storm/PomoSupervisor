@@ -102,9 +102,7 @@ function Supervision({ ai, task }: { ai: Ai; task: string }) {
   return (
     <div className={ai === "broken" ? "sup bad" : "sup"}>
       <span className="dot" aria-hidden="true" />
-      <span className="txt">
-        {ai === "broken" ? p.sup.broken : p.sup.off}
-      </span>
+      <span className="txt">{ai === "broken" ? p.sup.broken : p.sup.off}</span>
       <button className="link" onClick={() => openSettings("models")}>
         {ai === "broken" ? p.sup.check : p.sup.configure}
       </button>
@@ -113,7 +111,21 @@ function Supervision({ ai, task }: { ai: Ai; task: string }) {
 }
 
 /** `fresh`: a different task was asked for, so neither the last task nor what was allowed for it carries over. */
-function StartCard({ view, completed, missing, ai, fresh, onBack }: { view: TimerView; completed: number; missing: Missing; ai: Ai; fresh: boolean; onBack: () => void }) {
+function StartCard({
+  view,
+  completed,
+  missing,
+  ai,
+  fresh,
+  onBack,
+}: {
+  view: TimerView;
+  completed: number;
+  missing: Missing;
+  ai: Ai;
+  fresh: boolean;
+  onBack: () => void;
+}) {
   const [task, setTask] = useState(fresh ? "" : view.task);
   const [minutes, setMinutes] = useState(view.last_focus_min);
   const [allow, setAllow] = useState<string[]>(fresh ? [] : view.round_allow);
@@ -172,7 +184,13 @@ function StartCard({ view, completed, missing, ai, fresh, onBack }: { view: Time
         <div className="label">{p.start.allowed}</div>
         <div className="chips">
           {allow.map((a) => (
-            <button key={a} className="chip" aria-label={p.start.remove(allowLabel(a))} title={isPage(a) ? `${a}\n${p.start.clickToRemove}` : p.start.clickToRemove} onClick={() => setAllow(allow.filter((x) => x !== a))}>
+            <button
+              key={a}
+              className="chip"
+              aria-label={p.start.remove(allowLabel(a))}
+              title={isPage(a) ? `${a}\n${p.start.clickToRemove}` : p.start.clickToRemove}
+              onClick={() => setAllow(allow.filter((x) => x !== a))}
+            >
               {allowLabel(a)}
               <span className="x" aria-hidden="true">
                 ×
@@ -565,9 +583,7 @@ function NudgeCard({ view, verdict, recent }: { view: TimerView; verdict: Verdic
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
         <div className="nudge-title">{p.nudge.title}</div>
-        <div className="nudge-body">
-          {p.nudge.body(where, view.task ? quoted(view.task) : null)}
-        </div>
+        <div className="nudge-body">{p.nudge.body(where, view.task ? quoted(view.task) : null)}</div>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         <button className="btn primary" style={{ height: 34, borderRadius: 9 }} onClick={() => api.dismissNudge().then(close)}>
@@ -582,11 +598,7 @@ function NudgeCard({ view, verdict, recent }: { view: TimerView; verdict: Verdic
           </button>
         </div>
         {allow ? (
-          <div className="hint">
-            {page
-              ? p.nudge.pageHint(hostOf(allow) ?? allow)
-              : p.nudge.allowHint(allow)}
-          </div>
+          <div className="hint">{page ? p.nudge.pageHint(hostOf(allow) ?? allow) : p.nudge.allowHint(allow)}</div>
         ) : (
           <div className="hint">
             {p.nudge.noUrlHint}{" "}

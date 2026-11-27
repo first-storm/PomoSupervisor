@@ -53,10 +53,7 @@ pub fn summarize(lines: impl IntoIterator<Item = String>, max_chars: usize) -> O
 /// A cache key part that ignores digits, so clocks, progress and unread counts don't defeat the cache.
 pub fn fingerprint(ax: &AxInfo) -> String {
     let text: String = ax.text.as_deref().unwrap_or("").chars().take(120).collect();
-    format!("{}\u{1}{}", ax.focused.as_deref().unwrap_or(""), text)
-        .chars()
-        .filter(|c| !c.is_ascii_digit())
-        .collect()
+    format!("{}\u{1}{}", ax.focused.as_deref().unwrap_or(""), text).chars().filter(|c| !c.is_ascii_digit()).collect()
 }
 
 #[cfg(target_os = "macos")]
@@ -88,8 +85,22 @@ mod mac {
     const BUDGET: Duration = Duration::from_millis(400);
     /// Roles whose title / value / description is worth reading. Buttons are left out: mostly chrome.
     const TEXT_ROLES: &[&str] = &[
-        "AXStaticText", "AXHeading", "AXTextField", "AXTextArea", "AXLink", "AXTab", "AXCell", "AXRow", "AXImage",
-        "AXGroup", "AXComboBox", "AXCheckBox", "AXRadioButton", "AXMenuButton", "AXPopUpButton", "AXDocument",
+        "AXStaticText",
+        "AXHeading",
+        "AXTextField",
+        "AXTextArea",
+        "AXLink",
+        "AXTab",
+        "AXCell",
+        "AXRow",
+        "AXImage",
+        "AXGroup",
+        "AXComboBox",
+        "AXCheckBox",
+        "AXRadioButton",
+        "AXMenuButton",
+        "AXPopUpButton",
+        "AXDocument",
     ];
     /// Subtrees skipped: browser and app chrome, sidebars, password fields.
     fn skip(el: &CFType, role: &str, sub: &str) -> bool {
@@ -291,11 +302,7 @@ mod mac {
         let mut url = None;
         if let Some(win) = attr(&app, "AXFocusedWindow") {
             if let Some(doc) = string(&win, "AXDocument") {
-                let doc = url::Url::parse(&doc)
-                    .ok()
-                    .and_then(|u| u.to_file_path().ok())
-                    .map(|p| p.display().to_string())
-                    .unwrap_or(doc);
+                let doc = url::Url::parse(&doc).ok().and_then(|u| u.to_file_path().ok()).map(|p| p.display().to_string()).unwrap_or(doc);
                 lines.push(format!("{}{doc}", crate::i18n::tr().d_document));
             }
             // The page's main content first, then the rest of the page, then the window; repeats drop out later.

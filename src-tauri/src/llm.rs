@@ -164,14 +164,19 @@ pub async fn judge_text(model: &Judge, task: &str, s: &Sample, ax: Option<&AxInf
     }
 }
 
-pub async fn judge_image(model: &Judge, task: &str, s: &Sample, ax: Option<&AxInfo>, pic: Picture, min_conf: f64) -> anyhow::Result<Judgement> {
+pub async fn judge_image(
+    model: &Judge,
+    task: &str,
+    s: &Sample,
+    ax: Option<&AxInfo>,
+    pic: Picture,
+    min_conf: f64,
+) -> anyhow::Result<Judgement> {
     match model {
         Judge::Chat(m) => {
             let text = format!("{}\n{}", describe(task, s, ax), crate::i18n::tr().image_hint);
-            let msg = Message::from(vec![
-                UserContent::text(text),
-                UserContent::image_base64(pic.jpeg_b64, Some(ImageMediaType::JPEG), None),
-            ]);
+            let msg =
+                Message::from(vec![UserContent::text(text), UserContent::image_base64(pic.jpeg_b64, Some(ImageMediaType::JPEG), None)]);
             ask(m, msg).await
         }
         Judge::Decision(d) => {
@@ -224,7 +229,10 @@ mod tests {
         let s = Sample { app: "Firefox".into(), title: "文档".into(), ..Default::default() };
         let plain = describe("写论文", &s, None);
         assert!(plain.contains("URL：（无法获取）") && !plain.contains("窗口内容"));
-        let ax = AxInfo { focused: Some("AXTextField 搜索".into()), text: Some("第一段".into()), url: Some("https://example.com/a".into()) };
+        let ax =
+            AxInfo {
+                focused: Some("AXTextField 搜索".into()), text: Some("第一段".into()), url: Some("https://example.com/a".into())
+            };
         let d = describe("写论文", &s, Some(&ax));
         assert!(d.contains("URL：https://example.com/a"));
         assert!(d.contains("焦点控件：AXTextField 搜索"));

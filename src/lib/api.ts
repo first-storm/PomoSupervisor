@@ -194,7 +194,7 @@ export const api = {
 };
 
 const on =
-  <T,>(event: string) =>
+  <T>(event: string) =>
   (f: (v: T) => void): Promise<UnlistenFn> =>
     listen<T>(event, (e) => f(e.payload));
 
@@ -215,8 +215,7 @@ export function windowLabel(): string {
 
 export const mmss = (s: number) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 export const hm = (at: number) => new Date(at * 1000).toLocaleTimeString(intlTag, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
-export const hms = (at: number) =>
-  new Date(at * 1000).toLocaleTimeString(intlTag, { hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" });
+export const hms = (at: number) => new Date(at * 1000).toLocaleTimeString(intlTag, { hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" });
 
 export const hostOf = (url: string | null) => {
   if (!url) return null;

@@ -33,16 +33,7 @@ pub struct Timer {
 
 impl Default for Timer {
     fn default() -> Self {
-        Self {
-            phase: Phase::Idle,
-            remaining: 0,
-            total: 0,
-            pause: None,
-            cycle: 0,
-            task: String::new(),
-            paused_for: 0,
-            pending_break: None,
-        }
+        Self { phase: Phase::Idle, remaining: 0, total: 0, pause: None, cycle: 0, task: String::new(), paused_for: 0, pending_break: None }
     }
 }
 

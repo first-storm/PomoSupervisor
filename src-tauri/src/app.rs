@@ -924,7 +924,9 @@ async fn run_sample(app: &AppHandle, state: &Arc<AppState>) {
             Some(v.confidence),
             v.cached,
         ),
-        Outcome::Undecided => ((if own { "self" } else { "none" }).to_string(), "none", crate::i18n::tr().undecided.to_string(), None, false),
+        Outcome::Undecided => {
+            ((if own { "self" } else { "none" }).to_string(), "none", crate::i18n::tr().undecided.to_string(), None, false)
+        }
     };
     let _ = signal;
 

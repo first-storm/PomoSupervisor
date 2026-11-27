@@ -191,10 +191,8 @@ impl Store {
     }
 
     pub fn log_llm(&self, kind: &str, cached: bool, ok: bool) -> rusqlite::Result<()> {
-        self.conn.execute(
-            "INSERT INTO llm_calls(at, kind, cached, ok) VALUES (?1,?2,?3,?4)",
-            params![now(), kind, cached as i64, ok as i64],
-        )?;
+        self.conn
+            .execute("INSERT INTO llm_calls(at, kind, cached, ok) VALUES (?1,?2,?3,?4)", params![now(), kind, cached as i64, ok as i64])?;
         Ok(())
     }
 
@@ -231,7 +229,15 @@ impl Store {
         )?;
         let evs = q
             .query_map(params![id], |r| {
-                Ok(Ev { at: r.get(0)?, stage: r.get(1)?, result: r.get(2)?, app: r.get(3)?, title: r.get(4)?, url: r.get(5)?, reason: r.get(6)? })
+                Ok(Ev {
+                    at: r.get(0)?,
+                    stage: r.get(1)?,
+                    result: r.get(2)?,
+                    app: r.get(3)?,
+                    title: r.get(4)?,
+                    url: r.get(5)?,
+                    reason: r.get(6)?,
+                })
             })?
             .collect::<Result<Vec<_>, _>>()?;
 
@@ -308,9 +314,8 @@ impl Store {
         let since = day_start(0);
         let one = |sql: &str| -> rusqlite::Result<i64> { self.conn.query_row(sql, params![since], |r| r.get(0)) };
         let mut stages = StageCounts::default();
-        let mut q = self.conn.prepare(
-            "SELECT stage, COUNT(*) FROM events WHERE at>=?1 AND result IN ('focused','distracted') GROUP BY stage",
-        )?;
+        let mut q =
+            self.conn.prepare("SELECT stage, COUNT(*) FROM events WHERE at>=?1 AND result IN ('focused','distracted') GROUP BY stage")?;
         for row in q.query_map(params![since], |r| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?)))? {
             let (stage, n) = row?;
             match stage.as_str() {
@@ -326,7 +331,15 @@ impl Store {
         )?;
         let recent_alerts = q
             .query_map(params![since], |r| {
-                Ok(AlertRow { at: r.get(0)?, stage: r.get(1)?, app: r.get(2)?, title: r.get(3)?, url: r.get(4)?, reason: r.get(5)?, task: r.get(6)? })
+                Ok(AlertRow {
+                    at: r.get(0)?,
+                    stage: r.get(1)?,
+                    app: r.get(2)?,
+                    title: r.get(3)?,
+                    url: r.get(4)?,
+                    reason: r.get(5)?,
+                    task: r.get(6)?,
+                })
             })?
             .collect::<Result<Vec<_>, _>>()?;
         let mut week = Vec::new();

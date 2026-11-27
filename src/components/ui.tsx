@@ -71,17 +71,7 @@ export type DialTone = "focus" | "dim" | "rest";
  * 50 ticks around the dial. Elapsed ticks take the tone's colour, ticks during which
  * a sample was judged distracted are dark, and the current tick is longer.
  */
-export function Dial({
-  progress,
-  distracted = [],
-  tone,
-  children,
-}: {
-  progress: number;
-  distracted?: number[];
-  tone: DialTone;
-  children: React.ReactNode;
-}) {
+export function Dial({ progress, distracted = [], tone, children }: { progress: number; distracted?: number[]; tone: DialTone; children: React.ReactNode }) {
   const p = Math.min(1, Math.max(0, progress));
   const current = Math.min(DIAL_TICKS - 1, Math.floor(p * DIAL_TICKS));
   const done = tone === "rest" ? "#3D5275" : "#C8381F";

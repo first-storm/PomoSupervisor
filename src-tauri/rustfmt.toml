@@ -1,0 +1,3 @@
+# The code is written wide: one call or one struct literal per line where it fits.
+max_width = 140
+use_small_heuristics = "Max"

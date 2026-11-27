@@ -139,9 +139,7 @@ function Sources({ r }: { r: Review }) {
               <b>{vision}</b>
             </div>
           </div>
-          <div className="hint">
-            {modelShare === 0 ? t.review.allLocal : t.review.modelShare(modelShare)}
-          </div>
+          <div className="hint">{modelShare === 0 ? t.review.allLocal : t.review.modelShare(modelShare)}</div>
         </>
       ) : (
         <div className="hint">{t.review.noSamples}</div>
@@ -156,7 +154,11 @@ export default function ReviewWindow() {
   const [err, setErr] = useState("");
 
   useEffect(() => {
-    const load = () => api.getReview().then(setR).catch((e) => setErr(errText(e)));
+    const load = () =>
+      api
+        .getReview()
+        .then(setR)
+        .catch((e) => setErr(errText(e)));
     load();
     api.getState().then(setView);
     const subs = [onWindowShown(load), onTick(setView)];
@@ -191,9 +193,7 @@ export default function ReviewWindow() {
             <div className="review-head">
               <div>
                 <h1>{r.task || t.review.noTask}</h1>
-                <div className="meta">
-                  {t.review.meta(dayWord(r.started), hm(r.started), hm(r.ended), r.ordinal, mins(r.planned_secs))}
-                </div>
+                <div className="meta">{t.review.meta(dayWord(r.started), hm(r.started), hm(r.ended), r.ordinal, mins(r.planned_secs))}</div>
               </div>
               <span className={r.completed ? "pill hot" : "pill"}>{r.completed ? t.review.completed : t.review.endedEarly}</span>
             </div>

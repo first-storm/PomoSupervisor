@@ -1,0 +1,28 @@
+{
+  "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+  "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
+  "files": { "includes": ["src/**", "*.ts", "*.json", "*.jsonc", "index.html", "src-tauri/tauri.conf.json", "src-tauri/capabilities/*.json"] },
+  "formatter": { "indentStyle": "space", "indentWidth": 2, "lineWidth": 160 },
+  // styles.css keeps one rule per line on purpose; the formatter would triple its length.
+  "css": { "formatter": { "enabled": false } },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "preset": "recommended",
+      "a11y": {
+        // The popover opens to be typed into: the task box takes the keyboard.
+        "noAutofocus": "off",
+        // Settings lays labels and controls out as grid cells; each control carries its own aria-label.
+        "noLabelWithoutControl": "off",
+        // role="group" on a div, where a <fieldset> would bring its own box and legend.
+        "useSemanticElements": "off"
+      },
+      "style": {
+        // Used right after the check that makes it safe (`timed`, `back`, `owed`).
+        "noNonNullAssertion": "off",
+        // The sheet is ordered by screen, not by specificity.
+        "noDescendingSpecificity": "off"
+      }
+    }
+  }
+}

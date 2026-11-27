@@ -103,9 +103,8 @@ pub fn mark_as_work(rules: &mut Rules, target: &str) {
 
 pub fn evaluate(rules: &Rules, s: &Sample) -> Option<RuleHit> {
     let tr = crate::i18n::tr();
-    let app_hit = |list: &[String]| {
-        list.iter().find(|a| eq_ci(a, &s.app) || s.bundle_name.as_deref().is_some_and(|b| eq_ci(a, b))).cloned()
-    };
+    let app_hit =
+        |list: &[String]| list.iter().find(|a| eq_ci(a, &s.app) || s.bundle_name.as_deref().is_some_and(|b| eq_ci(a, b))).cloned();
     if let Some(a) = app_hit(&rules.block_apps) {
         return Some((false, (tr.rule_block_app)(&a)));
     }
@@ -121,9 +120,7 @@ pub fn evaluate(rules: &Rules, s: &Sample) -> Option<RuleHit> {
         }
     }
     let title = s.title.to_lowercase();
-    let kw_hit = |list: &[String]| {
-        list.iter().find(|k| !k.trim().is_empty() && title.contains(&k.trim().to_lowercase())).cloned()
-    };
+    let kw_hit = |list: &[String]| list.iter().find(|k| !k.trim().is_empty() && title.contains(&k.trim().to_lowercase())).cloned();
     if let Some(k) = kw_hit(&rules.block_keywords) {
         return Some((false, (tr.rule_block_keyword)(&k)));
     }

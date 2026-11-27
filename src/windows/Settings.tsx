@@ -1,5 +1,16 @@
 import { useEffect, useRef, useState } from "react";
-import { api, errText, onWindowClosing, onWindowShown, type ModelStatus, type ProviderConfig, type ProviderKind, type Rules, type Settings, type Slot } from "../lib/api";
+import {
+  api,
+  errText,
+  onWindowClosing,
+  onWindowShown,
+  type ModelStatus,
+  type ProviderConfig,
+  type ProviderKind,
+  type Rules,
+  type Settings,
+  type Slot,
+} from "../lib/api";
 import { LockIcon } from "../components/ui";
 import { t } from "../i18n";
 
@@ -21,14 +32,30 @@ const PRESETS: { name: string; slots: Slot[]; cfg: (slot: Slot) => ProviderConfi
   { name: "Claude Haiku", slots: ["text", "vision"], cfg: () => ({ kind: "anthropic", base_url: "", model: "claude-haiku-5-5" }) },
   { name: "DeepSeek", slots: ["text"], cfg: () => ({ kind: "openai", base_url: "https://api.deepseek.com/v1", model: "deepseek-chat" }) },
   { name: "OpenAI", slots: ["text", "vision"], cfg: () => ({ kind: "openai", base_url: "", model: "gpt-4o-mini" }) },
-  { name: t.settings.presetOllama, slots: ["text", "vision"], cfg: (slot) => ({ kind: "ollama", base_url: "", model: slot === "text" ? "qwen2.5:7b" : "qwen2.5vl:7b" }) },
+  {
+    name: t.settings.presetOllama,
+    slots: ["text", "vision"],
+    cfg: (slot) => ({ kind: "ollama", base_url: "", model: slot === "text" ? "qwen2.5:7b" : "qwen2.5vl:7b" }),
+  },
 ];
 const sameCfg = (a: ProviderConfig, b: ProviderConfig) => a.kind === b.kind && a.base_url === b.base_url && a.model === b.model;
 
 type Update = (patch: Partial<Settings>) => void;
 
 /** A select over presets that keeps the saved value even when it isn't one of them. */
-function Choice({ label, value, options, fmt, onChange }: { label: string; value: number; options: number[]; fmt: (n: number) => string; onChange: (n: number) => void }) {
+function Choice({
+  label,
+  value,
+  options,
+  fmt,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  options: number[];
+  fmt: (n: number) => string;
+  onChange: (n: number) => void;
+}) {
   const all = options.includes(value) ? options : [...options, value].sort((a, b) => a - b);
   return (
     <select className="select" aria-label={label} value={value} onChange={(e) => onChange(Number(e.target.value))}>
@@ -111,10 +138,22 @@ function GeneralPane({ s, update }: { s: Settings; update: Update }) {
           <span className="unit">{t.settings.general.longBreakEveryUnit(s.long_break_every)}</span>
         </Row>
         <Row name={t.settings.general.sound} desc={t.settings.general.soundDesc}>
-          <input type="checkbox" className="switch" aria-label={t.settings.general.sound} checked={s.sound} onChange={(e) => update({ sound: e.target.checked })} />
+          <input
+            type="checkbox"
+            className="switch"
+            aria-label={t.settings.general.sound}
+            checked={s.sound}
+            onChange={(e) => update({ sound: e.target.checked })}
+          />
         </Row>
         <Row name={t.settings.general.autoResume} desc={t.settings.general.autoResumeDesc}>
-          <input type="checkbox" className="switch" aria-label={t.settings.general.autoResume} checked={s.auto_resume} onChange={(e) => update({ auto_resume: e.target.checked })} />
+          <input
+            type="checkbox"
+            className="switch"
+            aria-label={t.settings.general.autoResume}
+            checked={s.auto_resume}
+            onChange={(e) => update({ auto_resume: e.target.checked })}
+          />
         </Row>
       </div>
     </>
@@ -148,16 +187,34 @@ function ChainPane({ s, update, go }: { s: Settings; update: Update; go: (p: Pan
           <button className="select" onClick={() => go("models")}>
             {modelName(s.text_model)}
           </button>
-          <input type="checkbox" className="switch" aria-label={t.settings.chain.textEnable} checked={s.text_enabled} onChange={(e) => update({ text_enabled: e.target.checked })} />
+          <input
+            type="checkbox"
+            className="switch"
+            aria-label={t.settings.chain.textEnable}
+            checked={s.text_enabled}
+            onChange={(e) => update({ text_enabled: e.target.checked })}
+          />
         </Row>
         <Row step={5} name={t.settings.chain.vision} tag="model" desc={t.settings.chain.visionDesc}>
           <button className="select" onClick={() => go("models")}>
             {modelName(s.vision_model)}
           </button>
-          <input type="checkbox" className="switch" aria-label={t.settings.chain.visionEnable} checked={s.vision_enabled} onChange={(e) => update({ vision_enabled: e.target.checked })} />
+          <input
+            type="checkbox"
+            className="switch"
+            aria-label={t.settings.chain.visionEnable}
+            checked={s.vision_enabled}
+            onChange={(e) => update({ vision_enabled: e.target.checked })}
+          />
         </Row>
         <Row step={6} name={t.settings.chain.remind} tag="local" desc={t.settings.chain.remindDesc}>
-          <Choice label={t.settings.chain.streakLabel} value={s.streak} options={[2, 3, 5]} fmt={t.settings.chain.streak} onChange={(n) => update({ streak: n })} />
+          <Choice
+            label={t.settings.chain.streakLabel}
+            value={s.streak}
+            options={[2, 3, 5]}
+            fmt={t.settings.chain.streak}
+            onChange={(n) => update({ streak: n })}
+          />
         </Row>
       </div>
       <div className="foot-note">
@@ -182,7 +239,14 @@ function ListBox({ label, value, onChange }: { label: string; value: string[]; o
         spellCheck={false}
         value={text}
         onChange={(e) => setText(e.target.value)}
-        onBlur={() => onChange(text.split("\n").map((x) => x.trim()).filter(Boolean))}
+        onBlur={() =>
+          onChange(
+            text
+              .split("\n")
+              .map((x) => x.trim())
+              .filter(Boolean),
+          )
+        }
       />
     </label>
   );
@@ -226,8 +290,20 @@ function TextIn({ label, value, placeholder, onChange }: { label: string; value:
   );
 }
 
-function Provider({ slot, title, cfg, onChange, status, onKeySaved }: {
-  slot: Slot; title: string; cfg: ProviderConfig | null; onChange: (c: ProviderConfig | null) => void; status: ModelStatus | null; onKeySaved: () => void;
+function Provider({
+  slot,
+  title,
+  cfg,
+  onChange,
+  status,
+  onKeySaved,
+}: {
+  slot: Slot;
+  title: string;
+  cfg: ProviderConfig | null;
+  onChange: (c: ProviderConfig | null) => void;
+  status: ModelStatus | null;
+  onKeySaved: () => void;
 }) {
   const [key, setKey] = useState("");
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
@@ -272,7 +348,12 @@ function Provider({ slot, title, cfg, onChange, status, onKeySaved }: {
           <label>Base URL</label>
           <TextIn label="Base URL" value={cfg.base_url} placeholder={URL_HINT[cfg.kind]} onChange={(v) => onChange({ ...cfg, base_url: v })} />
           <label>{t.settings.provider.model}</label>
-          <TextIn label={t.settings.provider.model} value={cfg.model} placeholder={MODEL_HINT[cfg.kind][slot]} onChange={(v) => onChange({ ...cfg, model: v })} />
+          <TextIn
+            label={t.settings.provider.model}
+            value={cfg.model}
+            placeholder={MODEL_HINT[cfg.kind][slot]}
+            onChange={(v) => onChange({ ...cfg, model: v })}
+          />
           {cfg.kind !== "ollama" && (
             <>
               <label htmlFor={`${slot}-key`}>API Key</label>
@@ -350,31 +431,45 @@ function ModelsPane({ s, update }: { s: Settings; update: Update }) {
         <div className="lede">{t.settings.models.lede}</div>
       </div>
       <div className="rows">
-        <Provider slot="text" title={t.settings.models.text} cfg={s.text_model} status={status} onKeySaved={refresh} onChange={(c) => update({ text_model: c })} />
-        <Provider slot="vision" title={t.settings.models.vision} cfg={s.vision_model} status={status} onKeySaved={refresh} onChange={(c) => update({ vision_model: c })} />
+        <Provider
+          slot="text"
+          title={t.settings.models.text}
+          cfg={s.text_model}
+          status={status}
+          onKeySaved={refresh}
+          onChange={(c) => update({ text_model: c })}
+        />
+        <Provider
+          slot="vision"
+          title={t.settings.models.vision}
+          cfg={s.vision_model}
+          status={status}
+          onKeySaved={refresh}
+          onChange={(c) => update({ vision_model: c })}
+        />
       </div>
       <details className="why">
         <summary>{t.settings.models.advanced}</summary>
-      <div className="rows" style={{ marginTop: 10 }}>
-        <Row name={t.settings.models.confidence} desc={t.settings.models.confidenceDesc}>
-          <input
-            type="range"
-            aria-label={t.settings.models.confidence}
-            min={0.5}
-            max={0.95}
-            step={0.05}
-            value={s.confidence}
-            onChange={(e) => update({ confidence: Number(e.target.value) })}
-            style={{ accentColor: "var(--tomato)" }}
-          />
-          <span className="unit num" style={{ width: 32, textAlign: "right" }}>
-            {Math.round(s.confidence * 100)}%
-          </span>
-        </Row>
-        <Row name={t.settings.models.dedup} desc={t.settings.models.dedupDesc}>
-          <NumberIn label={t.settings.models.dedupLabel} value={s.phash_threshold} min={0} max={32} onChange={(n) => update({ phash_threshold: n })} />
-        </Row>
-      </div>
+        <div className="rows" style={{ marginTop: 10 }}>
+          <Row name={t.settings.models.confidence} desc={t.settings.models.confidenceDesc}>
+            <input
+              type="range"
+              aria-label={t.settings.models.confidence}
+              min={0.5}
+              max={0.95}
+              step={0.05}
+              value={s.confidence}
+              onChange={(e) => update({ confidence: Number(e.target.value) })}
+              style={{ accentColor: "var(--tomato)" }}
+            />
+            <span className="unit num" style={{ width: 32, textAlign: "right" }}>
+              {Math.round(s.confidence * 100)}%
+            </span>
+          </Row>
+          <Row name={t.settings.models.dedup} desc={t.settings.models.dedupDesc}>
+            <NumberIn label={t.settings.models.dedupLabel} value={s.phash_threshold} min={0} max={32} onChange={(n) => update({ phash_threshold: n })} />
+          </Row>
+        </div>
       </details>
     </>
   );
@@ -401,7 +496,9 @@ function PrivacyPane({ s, update }: { s: Settings; update: Update }) {
       </div>
       <div className="rows">
         <Row name={t.settings.privacy.screen} desc={t.settings.privacy.screenDesc}>
-          <span className={granted ? "status ok" : "status no"}>{granted == null ? "" : granted ? t.settings.privacy.granted : t.settings.privacy.notGranted}</span>
+          <span className={granted ? "status ok" : "status no"}>
+            {granted == null ? "" : granted ? t.settings.privacy.granted : t.settings.privacy.notGranted}
+          </span>
           {!granted && (
             <button
               className="btn small"
@@ -414,11 +511,12 @@ function PrivacyPane({ s, update }: { s: Settings; update: Update }) {
             </button>
           )}
         </Row>
-        <Row
-          name={t.settings.privacy.ax}
-          desc={t.settings.privacy.axDesc}
-        >
-          {s.ax_enabled && <span className={axGranted ? "status ok" : "status no"}>{axGranted == null ? "" : axGranted ? t.settings.privacy.granted : t.settings.privacy.notGranted}</span>}
+        <Row name={t.settings.privacy.ax} desc={t.settings.privacy.axDesc}>
+          {s.ax_enabled && (
+            <span className={axGranted ? "status ok" : "status no"}>
+              {axGranted == null ? "" : axGranted ? t.settings.privacy.granted : t.settings.privacy.notGranted}
+            </span>
+          )}
           {s.ax_enabled && !axGranted && (
             <button
               className="btn small"
@@ -430,7 +528,13 @@ function PrivacyPane({ s, update }: { s: Settings; update: Update }) {
               {t.settings.privacy.grant}
             </button>
           )}
-          <input type="checkbox" className="switch" aria-label={t.settings.privacy.axToggle} checked={s.ax_enabled} onChange={(e) => update({ ax_enabled: e.target.checked })} />
+          <input
+            type="checkbox"
+            className="switch"
+            aria-label={t.settings.privacy.axToggle}
+            checked={s.ax_enabled}
+            onChange={(e) => update({ ax_enabled: e.target.checked })}
+          />
         </Row>
         <Row name={t.settings.privacy.automation} desc={t.settings.privacy.automationDesc}>
           <button className="btn small" onClick={() => api.openPrivacy("automation")}>

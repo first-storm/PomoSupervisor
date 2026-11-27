@@ -191,10 +191,8 @@ pub fn open(app: &AppHandle, label: &str) {
         .center()
         .focused(true);
     #[cfg(target_os = "macos")]
-    let b = b
-        .title_bar_style(tauri::TitleBarStyle::Overlay)
-        .hidden_title(true)
-        .traffic_light_position(tauri::LogicalPosition::new(14.0, 22.0));
+    let b =
+        b.title_bar_style(tauri::TitleBarStyle::Overlay).hidden_title(true).traffic_light_position(tauri::LogicalPosition::new(14.0, 22.0));
     if let Err(e) = b.build() {
         eprintln!("open {label}: {e}");
     }

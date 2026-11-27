@@ -21,6 +21,4 @@ const inTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window
  */
 export const locale: Locale = inTauri
   ? await invoke<Locale>("get_locale")
-  : (fromTag(new URLSearchParams(location.search).get("lang") ?? "") ??
-    navigator.languages.map(fromTag).find((l) => l !== null) ??
-    "en-US");
+  : (fromTag(new URLSearchParams(location.search).get("lang") ?? "") ?? navigator.languages.map(fromTag).find((l) => l !== null) ?? "en-US");

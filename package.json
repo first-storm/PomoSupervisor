@@ -1,5 +1,6 @@
 {
   "name": "pomo-supervisor",
+  "description": "带分心监督的番茄钟：菜单栏应用，专注时看前台窗口是不是还在任务上",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -7,19 +8,26 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.node.json",
+    "lint": "biome check",
+    "fix": "biome check --write && cd src-tauri && cargo fmt",
+    "check:rust": "cd src-tauri && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test",
+    "check": "pnpm lint && pnpm typecheck && pnpm build && pnpm check:rust"
   },
   "dependencies": {
+    "@tauri-apps/api": "^2",
     "react": "^19.1.0",
-    "react-dom": "^19.1.0",
-    "@tauri-apps/api": "^2"
+    "react-dom": "^19.1.0"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.6.9",
+    "@tauri-apps/cli": "^2",
+    "@types/node": "^26.6.11",
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
     "@vitejs/plugin-react": "^6.0.2",
     "typescript": "~6.0.3",
-    "vite": "^8.0.16",
-    "@tauri-apps/cli": "^2"
+    "vite": "^8.0.16"
   }
 }

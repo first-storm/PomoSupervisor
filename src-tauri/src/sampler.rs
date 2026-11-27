@@ -62,11 +62,7 @@ fn url_script(app: &str) -> Option<String> {
 
 async fn browser_url(app: &str) -> Option<String> {
     let script = url_script(app)?;
-    let child = tokio::process::Command::new("osascript")
-        .arg("-e")
-        .arg(script)
-        .kill_on_drop(true)
-        .output();
+    let child = tokio::process::Command::new("osascript").arg("-e").arg(script).kill_on_drop(true).output();
     let out = tokio::time::timeout(Duration::from_secs(3), child).await.ok()?.ok()?;
     if !out.status.success() {
         return None;
@@ -76,9 +72,7 @@ async fn browser_url(app: &str) -> Option<String> {
 }
 
 pub async fn sample() -> Option<Sample> {
-    let (win, idle) = tokio::task::spawn_blocking(|| (active_win_pos_rs::get_active_window().ok(), idle_secs()))
-        .await
-        .ok()?;
+    let (win, idle) = tokio::task::spawn_blocking(|| (active_win_pos_rs::get_active_window().ok(), idle_secs())).await.ok()?;
     let win = win?;
     let bundle = bundle_name(&win.process_path);
     let url_app = bundle.clone().unwrap_or_else(|| win.app_name.clone());

@@ -62,8 +62,7 @@ pub fn focus_popover(app: AppHandle) {
 /// "其实在工作": whitelist this app or site for good.
 #[tauri::command]
 pub fn mark_as_work(state: St, app_name: String, url: Option<String>) -> Result<String, String> {
-    let target = crate::rules::allow_target(&app_name, url.as_deref())
-        .ok_or(crate::i18n::tr().err_page_without_url)?;
+    let target = crate::rules::allow_target(&app_name, url.as_deref()).ok_or(crate::i18n::tr().err_page_without_url)?;
     state.mark_as_work(&target).map_err(|e| e.to_string())?;
     Ok(target)
 }

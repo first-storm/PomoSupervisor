@@ -9,8 +9,7 @@ const ja = {
   emptyTitle: "終わったポモドーロはまだありません",
   emptyBody: "1回分を完了または終了すると、集中・脱線と判定の内訳がここに表示されます。",
   noTask: "（タスク未入力）",
-  meta: (day: string, start: string, end: string, ordinal: number, minutes: number) =>
-    `${day} ${start} – ${end} · ${ordinal}個目のポモドーロ · ${minutes}分`,
+  meta: (day: string, start: string, end: string, ordinal: number, minutes: number) => `${day} ${start} – ${end} · ${ordinal}個目のポモドーロ · ${minutes}分`,
   completed: "完了",
   endedEarly: "途中で終了",
   focus: "集中",

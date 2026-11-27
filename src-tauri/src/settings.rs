@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
 use crate::i18n::Lang;
+use serde::{Deserialize, Serialize};
 use std::path::Path;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -52,29 +52,40 @@ impl Rules {
     pub fn for_lang(lang: Lang) -> Self {
         let mut block_apps = v(&["Steam", "Netflix", "TikTok"]);
         let mut block_domains = v(&[
-            "youtube.com", "tiktok.com", "x.com", "twitter.com", "reddit.com", "netflix.com",
-            "twitch.tv", "instagram.com", "facebook.com",
+            "youtube.com",
+            "tiktok.com",
+            "x.com",
+            "twitter.com",
+            "reddit.com",
+            "netflix.com",
+            "twitch.tv",
+            "instagram.com",
+            "facebook.com",
         ]);
         let mut block_keywords = v(&["YouTube", "Netflix", "Twitch"]);
         let (apps, domains, keywords): (&[&str], &[&str], &[&str]) = match lang {
             Lang::ZhHans => (
                 &["哔哩哔哩", "抖音"],
                 &[
-                    "bilibili.com", "douyin.com", "weibo.com", "xiaohongshu.com", "taobao.com", "jd.com",
-                    "iqiyi.com", "youku.com", "huya.com", "douyu.com",
+                    "bilibili.com",
+                    "douyin.com",
+                    "weibo.com",
+                    "xiaohongshu.com",
+                    "taobao.com",
+                    "jd.com",
+                    "iqiyi.com",
+                    "youku.com",
+                    "huya.com",
+                    "douyu.com",
                 ],
                 &["bilibili", "哔哩哔哩", "抖音", "微博", "小红书"],
             ),
-            Lang::ZhHant => (
-                &[],
-                &["dcard.tw", "ptt.cc", "shopee.tw", "pchome.com.tw", "gamer.com.tw", "linetv.tw"],
-                &["Dcard", "巴哈姆特"],
-            ),
-            Lang::Ja => (
-                &[],
-                &["nicovideo.jp", "abema.tv", "5ch.net", "amazon.co.jp", "rakuten.co.jp", "pixiv.net"],
-                &["ニコニコ", "ABEMA"],
-            ),
+            Lang::ZhHant => {
+                (&[], &["dcard.tw", "ptt.cc", "shopee.tw", "pchome.com.tw", "gamer.com.tw", "linetv.tw"], &["Dcard", "巴哈姆特"])
+            }
+            Lang::Ja => {
+                (&[], &["nicovideo.jp", "abema.tv", "5ch.net", "amazon.co.jp", "rakuten.co.jp", "pixiv.net"], &["ニコニコ", "ABEMA"])
+            }
             Lang::EnUs => (&[], &["amazon.com", "hulu.com", "9gag.com"], &[]),
             Lang::EnAu => (&[], &["amazon.com.au", "ebay.com.au", "9gag.com"], &[]),
         };
@@ -84,15 +95,43 @@ impl Rules {
         Self {
             block_apps,
             allow_apps: v(&[
-                "Xcode", "Code", "Visual Studio Code", "Cursor", "Zed", "Terminal", "iTerm2",
-                "Ghostty", "WezTerm", "kitty", "Alacritty", "IntelliJ IDEA", "PyCharm", "RustRover",
-                "CLion", "WebStorm", "GoLand", "Obsidian", "Pages", "Keynote", "Numbers",
-                "Microsoft Word", "Microsoft Excel", "Microsoft PowerPoint", "Figma",
+                "Xcode",
+                "Code",
+                "Visual Studio Code",
+                "Cursor",
+                "Zed",
+                "Terminal",
+                "iTerm2",
+                "Ghostty",
+                "WezTerm",
+                "kitty",
+                "Alacritty",
+                "IntelliJ IDEA",
+                "PyCharm",
+                "RustRover",
+                "CLion",
+                "WebStorm",
+                "GoLand",
+                "Obsidian",
+                "Pages",
+                "Keynote",
+                "Numbers",
+                "Microsoft Word",
+                "Microsoft Excel",
+                "Microsoft PowerPoint",
+                "Figma",
             ]),
             block_domains,
             allow_domains: v(&[
-                "github.com", "gitlab.com", "stackoverflow.com", "docs.rs", "crates.io",
-                "developer.mozilla.org", "developer.apple.com", "tauri.app", "rust-lang.org",
+                "github.com",
+                "gitlab.com",
+                "stackoverflow.com",
+                "docs.rs",
+                "crates.io",
+                "developer.mozilla.org",
+                "developer.apple.com",
+                "tauri.app",
+                "rust-lang.org",
                 "arxiv.org",
             ]),
             block_keywords,

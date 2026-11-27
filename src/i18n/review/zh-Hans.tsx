@@ -6,8 +6,7 @@ const zhHans = {
   emptyBody: "完成或结束一轮后，这里会显示它的专注、分心和判断来源。",
   noTask: "（未填写任务）",
   /** The line under the task: day, time span, which pomodoro of the day, planned length. */
-  meta: (day: string, start: string, end: string, ordinal: number, minutes: number) =>
-    `${day} ${start} – ${end} · 第 ${ordinal} 个番茄 · ${minutes} 分钟`,
+  meta: (day: string, start: string, end: string, ordinal: number, minutes: number) => `${day} ${start} – ${end} · 第 ${ordinal} 个番茄 · ${minutes} 分钟`,
   completed: "已完成",
   endedEarly: "提前结束",
   focus: "专注",

@@ -9,10 +9,12 @@ const enUS = {
 
   perm: {
     axTitle: "Accessibility access needed",
-    axBody: "Lets PomoSupervisor read the text in windows, so the model can judge what a title alone can't, and fills in Firefox URLs. You can turn it off in Settings → Privacy.",
+    axBody:
+      "Lets PomoSupervisor read the text in windows, so the model can judge what a title alone can't, and fills in Firefox URLs. You can turn it off in Settings → Privacy.",
     grant: "Grant access",
     screenTitle: "Screen Recording access needed",
-    screenBody: "Without it, other apps' window titles can't be read and screenshots can't be taken, so only app names are checked. Restart the app after granting access.",
+    screenBody:
+      "Without it, other apps' window titles can't be read and screenshots can't be taken, so only app names are checked. Restart the app after granting access.",
     accessibility: "Accessibility",
     browserUrls: "Browser URLs",
   },
@@ -182,15 +184,18 @@ const enUS = {
     pagePart: "This page is part of the task",
     part: "This is part of the task",
     restFor: (min: number) => `Take ${min} min`,
-    pageHint: (host: string) => `Switch back to work and this reminder goes away on its own. ${host} is on the block list, so only this page is allowed. Other pages there still get reminders.`,
-    allowHint: (target: string) => `Switch back to work and this reminder goes away on its own. Choosing “This is part of the task” allows ${target} for this task, with no more reminders.`,
+    pageHint: (host: string) =>
+      `Switch back to work and this reminder goes away on its own. ${host} is on the block list, so only this page is allowed. Other pages there still get reminders.`,
+    allowHint: (target: string) =>
+      `Switch back to work and this reminder goes away on its own. Choosing “This is part of the task” allows ${target} for this task, with no more reminders.`,
     noUrlHint: "Switch back to work and this reminder goes away on its own. This page's URL can't be read, so it can't be allowed on its own.",
     allowUrls: "Allow reading browser URLs",
     why: "Why am I seeing this?",
     distracted: "Distracted",
     focused: "Focused",
     unknown: "—",
-    thresholdHint: (n: number) => `You're only reminded after ${n === 1 ? "1 check" : `${n} checks in a row`} ${n === 1 ? "finds" : "find"} you distracted. If you don't come back, you're reminded again after 1, 2 and 5 minutes.`,
+    thresholdHint: (n: number) =>
+      `You're only reminded after ${n === 1 ? "1 check" : `${n} checks in a row`} ${n === 1 ? "finds" : "find"} you distracted. If you don't come back, you're reminded again after 1, 2 and 5 minutes.`,
   },
 } satisfies Dict;
 

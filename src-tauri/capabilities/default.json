@@ -2,14 +2,6 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Popover, Review and Settings windows",
-  "windows": [
-    "main",
-    "review",
-    "settings"
-  ],
-  "permissions": [
-    "core:default",
-    "core:window:allow-start-dragging",
-    "notification:default"
-  ]
+  "windows": ["main", "review", "settings"],
+  "permissions": ["core:default", "core:window:allow-start-dragging", "notification:default"]
 }

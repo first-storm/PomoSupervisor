@@ -79,7 +79,8 @@ impl DecisionModel {
                         body["assets"] = json!({ ASSET: { "type": "image", "format": "jpg", "data_base64": b64 } });
                     }
                     (Some(b64), ImageMode::ImageUrl) => {
-                        body["state"] = json!([text, { "type": "image_url", "image_url": { "url": format!("data:image/jpeg;base64,{b64}") } }]);
+                        body["state"] =
+                            json!([text, { "type": "image_url", "image_url": { "url": format!("data:image/jpeg;base64,{b64}") } }]);
                     }
                 }
                 body
@@ -123,7 +124,8 @@ impl DecisionModel {
         if has_image && self.dialect == Dialect::SystemOne && self.image_mode() == ImageMode::Assets {
             req = req.header("TypeSafe-Danger-Zone-Images", "true");
         }
-        let resp = req.send().await.map_err(|e| if e.is_timeout() { anyhow!(tr.err_timeout) } else { anyhow!((tr.err_call)(&e.to_string())) })?;
+        let resp =
+            req.send().await.map_err(|e| if e.is_timeout() { anyhow!(tr.err_timeout) } else { anyhow!((tr.err_call)(&e.to_string())) })?;
         let status = resp.status();
         let text = resp.text().await.map_err(|e| anyhow!((tr.err_call)(&e.to_string())))?;
         if !status.is_success() {
@@ -158,9 +160,9 @@ pub fn parse_answer(dialect: Dialect, v: &Value, min_conf: f64) -> anyhow::Resul
     let tr = crate::i18n::tr();
     let answer = match dialect {
         Dialect::SystemOne => v["answers"].get(QUESTION),
-        Dialect::OpenAI => v["answers"]
-            .as_array()
-            .and_then(|a| a.iter().find(|x| x["name"].as_str() == Some(QUESTION)).or_else(|| a.first())),
+        Dialect::OpenAI => {
+            v["answers"].as_array().and_then(|a| a.iter().find(|x| x["name"].as_str() == Some(QUESTION)).or_else(|| a.first()))
+        }
     }
     .context(tr.err_no_answer)?;
     let unsure = |reason: &str| Judgement { verdict: "unsure".into(), confidence: 0.0, reason: reason.into() };

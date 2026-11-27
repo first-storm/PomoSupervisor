@@ -7,8 +7,7 @@ const zhHant = {
   emptyTitle: "還沒有結束的番茄",
   emptyBody: "完成或結束一輪後，這裡會顯示它的專注、分心和判斷來源。",
   noTask: "（未填寫任務）",
-  meta: (day: string, start: string, end: string, ordinal: number, minutes: number) =>
-    `${day} ${start} – ${end} · 第 ${ordinal} 個番茄 · ${minutes} 分鐘`,
+  meta: (day: string, start: string, end: string, ordinal: number, minutes: number) => `${day} ${start} – ${end} · 第 ${ordinal} 個番茄 · ${minutes} 分鐘`,
   completed: "已完成",
   endedEarly: "提前結束",
   focus: "專注",
