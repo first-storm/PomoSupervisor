@@ -14,8 +14,6 @@ pub const IMG_MAX: u32 = 1568;
 const QUESTION: &str = "verdict";
 /// Asset key; it is matched against strings in `state`, so it must not look like a window title.
 const ASSET: &str = "pomo-shot-7f3c2a9e-4b1d-4e8a-9c55-1d2e3f4a5b6c";
-const FOCUSED: &str = "用户在做与本轮任务相关的事：查资料、看文档、写代码、与任务相关的沟通等";
-const DISTRACTED: &str = "用户在做与本轮任务无关的事：娱乐视频、社交媒体刷帖、购物、游戏、与任务无关的内容等";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Dialect {
@@ -53,7 +51,7 @@ impl DecisionModel {
             "" => OPENAI_DEFAULT.to_string(),
             u => u.to_string(),
         };
-        url::Url::parse(&endpoint).context("Base URL 不是有效的网址（Decision 模型需填完整 endpoint）")?;
+        url::Url::parse(&endpoint).context(crate::i18n::tr().err_bad_endpoint)?;
         let http = reqwest::Client::builder().timeout(Duration::from_secs(20)).build()?;
         Ok(Self { http, endpoint, key, model, dialect })
     }
@@ -65,18 +63,19 @@ impl DecisionModel {
 
     /// The request body, and whether it carries an image.
     fn build_body(&self, instructions: &str, text: &str, jpeg_b64: Option<&str>) -> (Value, bool) {
+        let tr = crate::i18n::tr();
         let body = match self.dialect {
             Dialect::SystemOne => {
                 let question = json!({
                     "type": "choice",
                     "instructions": instructions,
-                    "criteria": { "focused": FOCUSED, "distracted": DISTRACTED },
+                    "criteria": { "focused": tr.criteria_focused, "distracted": tr.criteria_distracted },
                 });
                 let mut body = json!({ "model": self.model, "questions": { QUESTION: question } });
                 match (jpeg_b64, self.image_mode()) {
                     (None, _) => body["state"] = json!(text),
                     (Some(b64), ImageMode::Assets) => {
-                        body["state"] = json!({ "窗口信息": text, "当前屏幕截图": ASSET });
+                        body["state"] = json!({ tr.state_window: text, tr.state_screenshot: ASSET });
                         body["assets"] = json!({ ASSET: { "type": "image", "format": "jpg", "data_base64": b64 } });
                     }
                     (Some(b64), ImageMode::ImageUrl) => {
@@ -101,8 +100,8 @@ impl DecisionModel {
                         "name": QUESTION,
                         "instructions": instructions,
                         "choices": [
-                            { "value": "focused", "description": FOCUSED },
-                            { "value": "distracted", "description": DISTRACTED },
+                            { "value": "focused", "description": tr.criteria_focused },
+                            { "value": "distracted", "description": tr.criteria_distracted },
                         ],
                     }],
                 })
@@ -112,10 +111,11 @@ impl DecisionModel {
     }
 
     pub async fn judge(&self, instructions: &str, text: &str, image: Option<Image<'_>>, min_conf: f64) -> anyhow::Result<Judgement> {
+        let tr = crate::i18n::tr();
         if let Some(img) = &image {
             let ok = |n: u32| (IMG_MIN..=IMG_MAX).contains(&n);
             if !ok(img.width) || !ok(img.height) {
-                return Err(anyhow!("截图尺寸 {}×{} 超出 Decision 模型的范围（每边 {IMG_MIN}–{IMG_MAX}）", img.width, img.height));
+                return Err(anyhow!((tr.err_shot_size)(img.width, img.height, IMG_MIN, IMG_MAX)));
             }
         }
         let (body, has_image) = self.build_body(instructions, text, image.as_ref().map(|i| i.jpeg_b64));
@@ -123,14 +123,14 @@ impl DecisionModel {
         if has_image && self.dialect == Dialect::SystemOne && self.image_mode() == ImageMode::Assets {
             req = req.header("TypeSafe-Danger-Zone-Images", "true");
         }
-        let resp = req.send().await.map_err(|e| if e.is_timeout() { anyhow!("模型调用超时") } else { anyhow!("模型调用失败：{e}") })?;
+        let resp = req.send().await.map_err(|e| if e.is_timeout() { anyhow!(tr.err_timeout) } else { anyhow!((tr.err_call)(&e.to_string())) })?;
         let status = resp.status();
-        let text = resp.text().await.map_err(|e| anyhow!("模型调用失败：{e}"))?;
+        let text = resp.text().await.map_err(|e| anyhow!((tr.err_call)(&e.to_string())))?;
         if !status.is_success() {
             let snippet: String = text.chars().take(200).collect();
-            return Err(anyhow!("模型调用失败：HTTP {} {snippet}", status.as_u16()));
+            return Err(anyhow!((tr.err_http)(status.as_u16(), &snippet)));
         }
-        let v: Value = serde_json::from_str(&text).context("回复不是 JSON")?;
+        let v: Value = serde_json::from_str(&text).context(tr.err_reply_not_json)?;
         parse_answer(self.dialect, &v, min_conf)
     }
 }
@@ -155,21 +155,22 @@ fn prob_of(answer: &Value, name: &str) -> Option<f64> {
 /// Turn a decision response into a Judgement. Below `min_conf` it is "unsure": with two options the model
 /// always picks one, and a near coin-flip must not count as a distraction.
 pub fn parse_answer(dialect: Dialect, v: &Value, min_conf: f64) -> anyhow::Result<Judgement> {
+    let tr = crate::i18n::tr();
     let answer = match dialect {
         Dialect::SystemOne => v["answers"].get(QUESTION),
         Dialect::OpenAI => v["answers"]
             .as_array()
             .and_then(|a| a.iter().find(|x| x["name"].as_str() == Some(QUESTION)).or_else(|| a.first())),
     }
-    .context("回复里没有判断结果")?;
+    .context(tr.err_no_answer)?;
     let unsure = |reason: &str| Judgement { verdict: "unsure".into(), confidence: 0.0, reason: reason.into() };
     if answer["type"].as_str() == Some("refusal") {
-        return Ok(unsure("决策模型拒绝回答"));
+        return Ok(unsure(tr.decision_refused));
     }
-    let Some(verdict) = verdict_of(&answer["choice"]) else { return Ok(unsure("决策模型没有给出选项")) };
+    let Some(verdict) = verdict_of(&answer["choice"]) else { return Ok(unsure(tr.decision_no_choice)) };
     let confidence = answer["confidence"].as_f64().or_else(|| prob_of(answer, verdict)).unwrap_or(0.0).clamp(0.0, 1.0);
     let p_distracted = prob_of(answer, "distracted").unwrap_or(if verdict == "distracted" { confidence } else { 1.0 - confidence });
-    let reason = format!("决策模型：分心概率 {p_distracted:.2}");
+    let reason = (tr.decision_reason)(p_distracted);
     let verdict = if confidence < min_conf { "unsure" } else { verdict };
     Ok(Judgement { verdict: verdict.into(), confidence, reason })
 }

@@ -1,5 +1,6 @@
 import { DIAL_TICKS } from "./dial-consts";
 import type { VerdictEvent } from "../lib/api";
+import { t } from "../i18n";
 
 export function MoreIcon() {
   return (
@@ -46,21 +47,21 @@ export function LockIcon() {
 }
 
 /** The badge naming which step of the decision chain settled a sample. */
-export function StageBadge({ v }: { v: Pick<VerdictEvent, "stage" | "result" | "reason"> }) {
+export function StageBadge({ v }: { v: Pick<VerdictEvent, "stage" | "result" | "round_allowed"> }) {
   switch (v.stage) {
     case "rules":
-      if (v.reason.startsWith("额外允许")) return <span className="badge">额外允许</span>;
-      return <span className="badge">{v.result === "focused" ? "规则 · 白名单" : "规则 · 黑名单"}</span>;
+      if (v.round_allowed) return <span className="badge">{t.common.stage.round}</span>;
+      return <span className="badge">{v.result === "focused" ? t.common.stage.allow : t.common.stage.block}</span>;
     case "text":
-      return <span className="badge model">文本模型</span>;
+      return <span className="badge model">{t.common.stage.text}</span>;
     case "vision":
-      return <span className="badge model">视觉模型</span>;
+      return <span className="badge model">{t.common.stage.vision}</span>;
     case "idle":
-      return <span className="badge">空闲检测</span>;
+      return <span className="badge">{t.common.stage.idle}</span>;
     case "self":
-      return <span className="badge">本应用</span>;
+      return <span className="badge">{t.common.stage.self}</span>;
     default:
-      return <span className="badge">未判定</span>;
+      return <span className="badge">{t.common.stage.none}</span>;
   }
 }
 

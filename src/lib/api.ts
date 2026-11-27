@@ -1,5 +1,6 @@
 import { invoke as tauriInvoke } from "@tauri-apps/api/core";
 import { listen as tauriListen, type UnlistenFn } from "@tauri-apps/api/event";
+import { intlTag, t } from "../i18n";
 
 export type Phase = "idle" | "focus" | "short_break" | "long_break";
 export type Pause = "user" | "away" | null;
@@ -43,6 +44,8 @@ export interface VerdictEvent {
   stage: Stage;
   result: "focused" | "distracted" | "away" | "none";
   reason: string;
+  /** Settled by the round's own allow list (额外允许). */
+  round_allowed: boolean;
   confidence: number | null;
   cached: boolean;
   notes: string[];
@@ -211,9 +214,9 @@ export function windowLabel(): string {
 }
 
 export const mmss = (s: number) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
-export const hm = (t: number) => new Date(t * 1000).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", hour12: false });
-export const hms = (t: number) =>
-  new Date(t * 1000).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
+export const hm = (at: number) => new Date(at * 1000).toLocaleTimeString(intlTag, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+export const hms = (at: number) =>
+  new Date(at * 1000).toLocaleTimeString(intlTag, { hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" });
 
 export const hostOf = (url: string | null) => {
   if (!url) return null;
@@ -230,7 +233,7 @@ export const targetOf = (v: { app: string; url: string | null }) => hostOf(v.url
 
 /** An allow entry is an app, a site, or (with a scheme) one page of a site. */
 export const isPage = (entry: string) => entry.includes("://");
-export const allowLabel = (entry: string) => (isPage(entry) ? `${hostOf(entry) ?? entry} 的一个页面` : entry);
+export const allowLabel = (entry: string) => (isPage(entry) ? t.common.pageOf(hostOf(entry) ?? entry) : entry);
 
 /** Open Settings on a given pane (the windows share localStorage). */
 export const openSettings = (pane?: string) => {

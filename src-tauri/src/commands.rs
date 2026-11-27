@@ -63,9 +63,15 @@ pub fn focus_popover(app: AppHandle) {
 #[tauri::command]
 pub fn mark_as_work(state: St, app_name: String, url: Option<String>) -> Result<String, String> {
     let target = crate::rules::allow_target(&app_name, url.as_deref())
-        .ok_or("读不到这个网页的网址，没法只放行它。先在系统设置里允许读取浏览器网址。")?;
+        .ok_or(crate::i18n::tr().err_page_without_url)?;
     state.mark_as_work(&target).map_err(|e| e.to_string())?;
     Ok(target)
+}
+
+/// The language this run speaks (the system's, read at launch), for the webviews.
+#[tauri::command]
+pub fn get_locale() -> &'static str {
+    crate::i18n::lang().tag()
 }
 
 #[tauri::command]
@@ -98,7 +104,7 @@ pub fn today_completed(state: St) -> Result<i64, String> {
 
 #[tauri::command]
 pub fn open_window(app: AppHandle, label: String) -> Result<(), String> {
-    matches!(label.as_str(), "review" | "settings").then_some(()).ok_or("未知窗口")?;
+    matches!(label.as_str(), "review" | "settings").then_some(()).ok_or(crate::i18n::tr().err_unknown_window)?;
     crate::windows::open(&app, &label);
     Ok(())
 }
@@ -200,7 +206,7 @@ pub fn model_status(state: St) -> ModelStatus {
 }
 
 fn slot_ok(slot: &str) -> Result<(), String> {
-    matches!(slot, "text" | "vision").then_some(()).ok_or_else(|| "未知模型槽位".to_string())
+    matches!(slot, "text" | "vision").then_some(()).ok_or_else(|| crate::i18n::tr().err_unknown_slot.to_string())
 }
 
 #[tauri::command(async)]
@@ -218,7 +224,7 @@ pub async fn test_provider(state: State<'_, Arc<AppState>>, slot: String) -> Res
         let m = state.models.read().unwrap();
         if slot == "text" { (m.text.clone(), m.text_error.clone()) } else { (m.vision.clone(), m.vision_error.clone()) }
     };
-    let model = model.ok_or_else(|| err.unwrap_or_else(|| "尚未配置该模型".into()))?;
+    let model = model.ok_or_else(|| err.unwrap_or_else(|| crate::i18n::tr().err_model_not_set.into()))?;
     if slot == "vision" { crate::llm::ping_image(&model).await } else { crate::llm::ping(&model).await }.map_err(|e| e.to_string())
 }
 
@@ -268,7 +274,7 @@ pub fn open_privacy(pane: String) -> Result<(), String> {
         "screen" => "Privacy_ScreenCapture",
         "automation" => "Privacy_Automation",
         "accessibility" => "Privacy_Accessibility",
-        _ => return Err("未知设置页".into()),
+        _ => return Err(crate::i18n::tr().err_unknown_pane.into()),
     };
     std::process::Command::new("open")
         .arg(format!("x-apple.systempreferences:com.apple.preference.security?{anchor}"))

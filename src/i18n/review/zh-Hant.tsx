@@ -1,0 +1,45 @@
+import type { Dict } from "./zh-Hans";
+
+const zhHant = {
+  title: "專注回顧",
+  today: "今天",
+  yesterday: "昨天",
+  emptyTitle: "還沒有結束的番茄",
+  emptyBody: "完成或結束一輪後，這裡會顯示它的專注、分心和判斷來源。",
+  noTask: "（未填寫任務）",
+  meta: (day: string, start: string, end: string, ordinal: number, minutes: number) =>
+    `${day} ${start} – ${end} · 第 ${ordinal} 個番茄 · ${minutes} 分鐘`,
+  completed: "已完成",
+  endedEarly: "提前結束",
+  focus: "專注",
+  distract: "分心",
+  away: "離開",
+  focusUnit: (_minutes: number) => "分鐘",
+  distractUnit: (_minutes: number, alerts: number) => `分鐘 · 提醒 ${alerts} 次`,
+  awayUnit: (_minutes: number) => "分鐘 · 不計入番茄",
+  timeline: "時間軸",
+  segment: (what: string, dur: string) => `${what} ${dur}`,
+  timelineAria: (start: string, segments: string[]) => `時間軸：${start} 起，` + segments.join("，"),
+  distractions: "分心片段",
+  noDistractions: "這一輪沒有分心。",
+  distractionsHint: "判斷錯了就點「其實在工作」，對應的 App 或網域會加入白名單。",
+  actuallyWorking: "其實在工作",
+  added: "已加入",
+  addedToAllow: (name: string) => `${name} 已加入白名單`,
+  sources: "判斷來源",
+  samples: (n: number) => `共 ${n} 次取樣`,
+  sourcesAria: (total: number, rules: number, text: number, vision: number) =>
+    `${total} 次取樣中，規則比對 ${rules} 次，文字模型 ${text} 次，視覺模型 ${vision} 次`,
+  rules: "規則比對",
+  local: "· 本機",
+  textModel: "文字模型",
+  visionModel: "視覺模型",
+  screenshot: "· 截圖",
+  allLocal: "所有取樣都在本機判斷完成，沒有用到模型。",
+  modelShare: (pct: number) => `只有 ${pct}% 的取樣用到了模型，其餘都在本機判斷完成。`,
+  noSamples: "這一輪沒有得出結論的取樣。",
+  takeBreak: (minutes: number) => `休息 ${minutes} 分鐘`,
+  again: "再來一輪",
+} satisfies Dict;
+
+export default zhHant;

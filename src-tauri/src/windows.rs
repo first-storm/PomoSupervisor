@@ -150,9 +150,10 @@ pub fn fit_popover(app: &AppHandle, width: f64, height: f64) {
 }
 
 pub fn more_menu<R: Runtime>(w: &WebviewWindow<R>) -> tauri::Result<()> {
-    let review = MenuItem::with_id(w, "review", "专注回顾", true, None::<&str>)?;
-    let settings = MenuItem::with_id(w, "settings", "设置…", true, Some("CmdOrCtrl+,"))?;
-    let quit = MenuItem::with_id(w, "quit", "退出 PomoSupervisor", true, Some("CmdOrCtrl+Q"))?;
+    let tr = crate::i18n::tr();
+    let review = MenuItem::with_id(w, "review", tr.menu_review, true, None::<&str>)?;
+    let settings = MenuItem::with_id(w, "settings", tr.menu_settings, true, Some("CmdOrCtrl+,"))?;
+    let quit = MenuItem::with_id(w, "quit", tr.menu_quit_app, true, Some("CmdOrCtrl+Q"))?;
     let menu = Menu::with_items(w, &[&review, &settings, &PredefinedMenuItem::separator(w)?, &quit])?;
     w.popup_menu(&menu)
 }
@@ -182,7 +183,7 @@ pub fn open(app: &AppHandle, label: &str) {
         let _ = w.set_focus();
         return;
     }
-    let (title, h) = if label == "review" { ("专注回顾", 640.0) } else { ("设置", 560.0) };
+    let (title, h) = if label == "review" { (crate::i18n::tr().title_review, 640.0) } else { (crate::i18n::tr().title_settings, 560.0) };
     let b = WebviewWindowBuilder::new(app, label, WebviewUrl::App("index.html".into()))
         .title(title)
         .inner_size(800.0, h)

@@ -38,6 +38,10 @@ cd src-tauri && cargo test
 - **辅助功能**（默认开启，可在设置 → 隐私关掉）：规则没命中时读取前台窗口的焦点控件和部分文字（最多约 800 字，不读密码框，不保存）交给模型；Firefox 等 AppleScript 拿不到网址的浏览器也从这里补上 URL。
 - `pnpm tauri dev` 时权限授予的是启动它的终端；打包后的 .app 需要单独授权。
 
+## 语言
+
+界面、通知、菜单栏、判定理由和给模型的提示词都跟随系统语言（启动时读取，改了要重开）：简体中文、繁體中文、English (US)、English (Australia)、日本語，其他语言用英文。首次启动的默认黑白名单也按语言给（比如日文加上 nicovideo.jp、繁中加上 dcard.tw）。开发时可以用 `POMO_LANG=ja pnpm tauri dev` 指定语言，浏览器预览加 `&lang=ja`。
+
 ## 模型
 
 在“设置 → 模型与密钥”中配置，通过 rig-core 调用，不配置也能用（仅空闲 + 规则）：
@@ -57,6 +61,7 @@ API Key 存在 macOS 钥匙串（服务名 `PomoSupervisor`）。设置与统计
 ## 代码结构
 
 - `src-tauri/src/app.rs` — 状态、1 秒主循环、一次采样走完决策链
+- `src-tauri/src/i18n/` — 后端各语言的文字与提示词（每种语言一张 `Strings` 表，缺一条编译不过）；`src/i18n/` — 前端字典（`zh-Hans` 为源，其他语言 `satisfies` 它的类型）；`src-tauri/l10n/` — 权限弹窗文案
 - `pipeline.rs` 决策链执行器 · `rules.rs` 规则 · `llm.rs` rig 模型与提示词 · `decision.rs` Decision 模型（System One / OpenAI Decisions） · `vision.rs` 截图与 pHash · `smoother.rs` 平滑器 · `timer.rs` 计时状态机 · `store.rs` SQLite 统计
 - `windows.rs` — 菜单栏弹窗的定位、失焦隐藏，以及“专注回顾”“设置”两个窗口
 - `src/` — React 前端：`popover/` 菜单栏弹窗（开始前 · 专注中 · 暂停/离开 · 番茄完成 · 休息 · 休息结束 · 分心提醒），`windows/` 专注回顾与设置

@@ -1,0 +1,3 @@
+/* Permission prompts (see Info.plist). */
+"NSAppleEventsUsageDescription" = "PomoSupervisor は、集中できているかを判断するためにブラウザの現在のタブの URL を読み取ります。";
+"NSScreenCaptureUsageDescription" = "PomoSupervisor はウインドウのタイトルを読み取り、画像による判定がオンのときはスクリーンショットを撮ります。";

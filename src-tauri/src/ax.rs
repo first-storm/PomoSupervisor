@@ -97,7 +97,7 @@ mod mac {
             || matches!(sub, "AXSourceList" | "AXLandmarkNavigation" | "AXLandmarkBanner" | "AXLandmarkContentInfo")
             // Finder, Mail, Notes…: the sidebar is an outline that says so.
             || (role == "AXOutline"
-                && string(el, "AXDescription").is_some_and(|d| matches!(d.to_lowercase().as_str(), "sidebar" | "侧边栏" | "边栏")))
+                && string(el, "AXDescription").is_some_and(|d| matches!(d.to_lowercase().as_str(), "sidebar" | "侧边栏" | "边栏" | "側邊欄" | "サイドバー")))
     }
     /// Gecko browsers build their tree only for an assistive technology, which `AXEnhancedUserInterface` stands in for.
     /// Other apps don't get it: it can disturb window animations.
@@ -296,7 +296,7 @@ mod mac {
                     .and_then(|u| u.to_file_path().ok())
                     .map(|p| p.display().to_string())
                     .unwrap_or(doc);
-                lines.push(format!("文档：{doc}"));
+                lines.push(format!("{}{doc}", crate::i18n::tr().d_document));
             }
             // The page's main content first, then the rest of the page, then the window; repeats drop out later.
             let mut roots = Vec::new();

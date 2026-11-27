@@ -1,0 +1,3 @@
+/* Permission prompts (see Info.plist). */
+"NSAppleEventsUsageDescription" = "PomoSupervisor reads the address of the browser’s current tab to tell whether you’re focused.";
+"NSScreenCaptureUsageDescription" = "PomoSupervisor reads window titles, and takes screenshots when vision checks are on.";

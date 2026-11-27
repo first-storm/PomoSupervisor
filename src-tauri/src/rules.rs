@@ -42,13 +42,13 @@ pub fn round_allow(extra: &[String], s: &Sample) -> Option<RuleHit> {
                 || s.bundle_name.as_deref().is_some_and(|b| eq_ci(e, b))
                 || host.as_deref().is_some_and(|h| e.contains('.') && domain_matches(h, e))
         })
-        .map(|e| (true, format!("额外允许：{e}")))
+        .map(|e| (true, (crate::i18n::tr().rule_round_allow)(e)))
 }
 
 /// Browsers by app name, localized names included ("Safari浏览器").
 pub fn is_browser(app: &str) -> bool {
     let a = app.trim().to_lowercase();
-    ["safari", "chrome", "chromium", "firefox", "microsoft edge", "brave", "opera", "vivaldi", "browser", "浏览器"]
+    ["safari", "chrome", "chromium", "firefox", "microsoft edge", "brave", "opera", "vivaldi", "browser", "浏览器", "瀏覽器", "ブラウザ"]
         .iter()
         .any(|b| a.contains(b))
         || ["arc", "orion", "zen", "dia", "edge", "helium", "librewolf", "waterfox", "floorp", "thorium"].contains(&a.as_str())
@@ -102,21 +102,22 @@ pub fn mark_as_work(rules: &mut Rules, target: &str) {
 }
 
 pub fn evaluate(rules: &Rules, s: &Sample) -> Option<RuleHit> {
+    let tr = crate::i18n::tr();
     let app_hit = |list: &[String]| {
         list.iter().find(|a| eq_ci(a, &s.app) || s.bundle_name.as_deref().is_some_and(|b| eq_ci(a, b))).cloned()
     };
     if let Some(a) = app_hit(&rules.block_apps) {
-        return Some((false, format!("黑名单应用：{a}")));
+        return Some((false, (tr.rule_block_app)(&a)));
     }
     if let Some(a) = app_hit(&rules.allow_apps) {
-        return Some((true, format!("白名单应用：{a}")));
+        return Some((true, (tr.rule_allow_app)(&a)));
     }
     if let Some(host) = s.url.as_deref().and_then(host_of) {
         if let Some(d) = rules.block_domains.iter().find(|d| domain_matches(&host, d)) {
-            return Some((false, format!("黑名单网站：{d}")));
+            return Some((false, (tr.rule_block_site)(d)));
         }
         if let Some(d) = rules.allow_domains.iter().find(|d| domain_matches(&host, d)) {
-            return Some((true, format!("白名单网站：{d}")));
+            return Some((true, (tr.rule_allow_site)(d)));
         }
     }
     let title = s.title.to_lowercase();
@@ -124,10 +125,10 @@ pub fn evaluate(rules: &Rules, s: &Sample) -> Option<RuleHit> {
         list.iter().find(|k| !k.trim().is_empty() && title.contains(&k.trim().to_lowercase())).cloned()
     };
     if let Some(k) = kw_hit(&rules.block_keywords) {
-        return Some((false, format!("标题含黑名单关键词：{k}")));
+        return Some((false, (tr.rule_block_keyword)(&k)));
     }
     if let Some(k) = kw_hit(&rules.allow_keywords) {
-        return Some((true, format!("标题含白名单关键词：{k}")));
+        return Some((true, (tr.rule_allow_keyword)(&k)));
     }
     None
 }

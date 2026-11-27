@@ -5,7 +5,7 @@ use serde::Serialize;
 #[derive(Debug, Clone, Serialize, PartialEq)]
 pub struct Verdict {
     pub focused: bool,
-    /// "rules" | "text" | "vision"
+    /// "round" (this round's allow list) | "rules" | "text" | "vision"
     pub stage: &'static str,
     pub reason: String,
     pub confidence: f64,

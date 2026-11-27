@@ -65,6 +65,7 @@ const v = (at: number, over: Partial<VerdictEvent>): VerdictEvent => ({
   stage: "rules",
   result: "focused",
   reason: "白名单应用：Xcode",
+  round_allowed: false,
   confidence: 1,
   cached: false,
   notes: [],

@@ -3,11 +3,22 @@
 <plist version="1.0">
 <dict>
   <!-- Liquid Glass icon from icon/PomoSupervisor.icon, compiled into Resources/Assets.car -->
+  <key>CFBundleDevelopmentRegion</key>
+  <string>en</string>
+  <!-- The UI follows the system language; permission prompts come from l10n/*.lproj/InfoPlist.strings. -->
+  <key>CFBundleLocalizations</key>
+  <array>
+    <string>en</string>
+    <string>en_AU</string>
+    <string>zh-Hans</string>
+    <string>zh-Hant</string>
+    <string>ja</string>
+  </array>
   <key>CFBundleIconName</key>
   <string>PomoSupervisor</string>
   <key>NSAppleEventsUsageDescription</key>
-  <string>PomoSupervisor 需要读取浏览器当前标签页的网址，用来判断你是否在专注。</string>
+  <string>PomoSupervisor reads the address of the browser’s current tab to tell whether you’re focused.</string>
   <key>NSScreenCaptureUsageDescription</key>
-  <string>PomoSupervisor 需要读取窗口标题，并在开启视觉判断时截图。</string>
+  <string>PomoSupervisor reads window titles, and takes screenshots when vision checks are on.</string>
 </dict>
 </plist>

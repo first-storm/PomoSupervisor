@@ -1,44 +1,27 @@
 import { useEffect, useRef, useState } from "react";
 import { api, errText, onWindowClosing, onWindowShown, type ModelStatus, type ProviderConfig, type ProviderKind, type Rules, type Settings, type Slot } from "../lib/api";
 import { LockIcon } from "../components/ui";
+import { t } from "../i18n";
 
 type PaneId = "general" | "chain" | "lists" | "models" | "privacy";
 const PANES: [PaneId, string][] = [
-  ["general", "通用"],
-  ["chain", "判断流程"],
-  ["lists", "黑白名单"],
-  ["models", "模型与密钥"],
-  ["privacy", "隐私"],
+  ["general", t.settings.panes.general],
+  ["chain", t.settings.panes.chain],
+  ["lists", t.settings.panes.lists],
+  ["models", t.settings.panes.models],
+  ["privacy", t.settings.panes.privacy],
 ];
 
-const KIND_LABEL: Record<ProviderKind, string> = {
-  openai: "OpenAI 兼容",
-  anthropic: "Anthropic",
-  ollama: "Ollama（本地）",
-  decision: "Decision 模型（System One 兼容）",
-  openai_decisions: "Decision 模型（OpenAI）",
-};
-const URL_HINT: Record<ProviderKind, string> = {
-  openai: "留空为 OpenAI 官方；其他需带 /v1",
-  anthropic: "留空为官方地址",
-  ollama: "留空为 http://localhost:11434",
-  decision: "完整 endpoint；留空为 TypeSafe，如 https://openrouter.ai/api/alpha/decisions",
-  openai_decisions: "完整 endpoint；留空为 https://api.openai.com/v1/decisions",
-};
-const MODEL_HINT: Record<ProviderKind, Record<Slot, string>> = {
-  openai: { text: "如 deepseek-chat / gpt-4o-mini", vision: "需支持图片输入的模型" },
-  anthropic: { text: "如 claude-haiku-5-5", vision: "如 claude-haiku-5-5" },
-  ollama: { text: "如 qwen2.5:7b", vision: "如 qwen2.5vl:7b" },
-  decision: { text: "如 jev-latest / typesafe/jev-1.14", vision: "需支持图片，如 jev-1.14" },
-  openai_decisions: { text: "如 gpt-6-luna", vision: "如 gpt-6-luna" },
-};
+const KIND_LABEL: Record<ProviderKind, string> = t.settings.kind;
+const URL_HINT: Record<ProviderKind, string> = t.settings.urlHint;
+const MODEL_HINT: Record<ProviderKind, Record<Slot, string>> = t.settings.modelHint;
 
 /** One-click fills, so setting a model up is "pick one, paste the key". */
 const PRESETS: { name: string; slots: Slot[]; cfg: (slot: Slot) => ProviderConfig }[] = [
   { name: "Claude Haiku", slots: ["text", "vision"], cfg: () => ({ kind: "anthropic", base_url: "", model: "claude-haiku-5-5" }) },
   { name: "DeepSeek", slots: ["text"], cfg: () => ({ kind: "openai", base_url: "https://api.deepseek.com/v1", model: "deepseek-chat" }) },
   { name: "OpenAI", slots: ["text", "vision"], cfg: () => ({ kind: "openai", base_url: "", model: "gpt-4o-mini" }) },
-  { name: "Ollama 本地", slots: ["text", "vision"], cfg: (slot) => ({ kind: "ollama", base_url: "", model: slot === "text" ? "qwen2.5:7b" : "qwen2.5vl:7b" }) },
+  { name: t.settings.presetOllama, slots: ["text", "vision"], cfg: (slot) => ({ kind: "ollama", base_url: "", model: slot === "text" ? "qwen2.5:7b" : "qwen2.5vl:7b" }) },
 ];
 const sameCfg = (a: ProviderConfig, b: ProviderConfig) => a.kind === b.kind && a.base_url === b.base_url && a.model === b.model;
 
@@ -90,8 +73,8 @@ function Row({ step, name, tag, desc, children }: { step?: number; name: string;
       <div className="what">
         <div className="name">
           <span>{name}</span>
-          {tag === "local" && <span className="badge sm">本地</span>}
-          {tag === "model" && <span className="badge sm model">调用模型</span>}
+          {tag === "local" && <span className="badge sm">{t.settings.tagLocal}</span>}
+          {tag === "model" && <span className="badge sm model">{t.settings.tagModel}</span>}
         </div>
         <div className="desc">{desc}</div>
       </div>
@@ -100,38 +83,38 @@ function Row({ step, name, tag, desc, children }: { step?: number; name: string;
   );
 }
 
-const secs = (n: number) => `每 ${n} 秒`;
-const span = (n: number) => (n % 60 === 0 ? `${n / 60} 分钟` : `${n} 秒`);
+const secs = t.settings.everySecs;
+const span = t.settings.span;
 
 function GeneralPane({ s, update }: { s: Settings; update: Update }) {
   return (
     <>
       <div>
-        <h1>通用</h1>
-        <div className="lede">番茄和休息的长度。开始专注时也可以为这一轮单独选时长。</div>
+        <h1>{t.settings.general.title}</h1>
+        <div className="lede">{t.settings.general.lede}</div>
       </div>
       <div className="rows">
-        <Row name="专注时长" desc="开始专注时默认选中的时长">
-          <NumberIn label="专注时长" value={s.focus_min} min={1} max={180} onChange={(n) => update({ focus_min: n })} />
-          <span className="unit">分钟</span>
+        <Row name={t.settings.general.focus} desc={t.settings.general.focusDesc}>
+          <NumberIn label={t.settings.general.focus} value={s.focus_min} min={1} max={180} onChange={(n) => update({ focus_min: n })} />
+          <span className="unit">{t.settings.general.minUnit}</span>
         </Row>
-        <Row name="短休息" desc="每个番茄之后的休息；专注中暂停一次也是这么长，到点自动继续">
-          <NumberIn label="短休息" value={s.short_break_min} min={1} max={60} onChange={(n) => update({ short_break_min: n })} />
-          <span className="unit">分钟</span>
+        <Row name={t.settings.general.shortBreak} desc={t.settings.general.shortBreakDesc}>
+          <NumberIn label={t.settings.general.shortBreak} value={s.short_break_min} min={1} max={60} onChange={(n) => update({ short_break_min: n })} />
+          <span className="unit">{t.settings.general.minUnit}</span>
         </Row>
-        <Row name="长休息" desc={`每完成 ${s.long_break_every} 个番茄，换成一次长休息`}>
-          <NumberIn label="长休息" value={s.long_break_min} min={1} max={120} onChange={(n) => update({ long_break_min: n })} />
-          <span className="unit">分钟</span>
+        <Row name={t.settings.general.longBreak} desc={t.settings.general.longBreakDesc(s.long_break_every)}>
+          <NumberIn label={t.settings.general.longBreak} value={s.long_break_min} min={1} max={120} onChange={(n) => update({ long_break_min: n })} />
+          <span className="unit">{t.settings.general.minUnit}</span>
         </Row>
-        <Row name="长休息间隔" desc="几个番茄之后长休息一次">
-          <NumberIn label="长休息间隔" value={s.long_break_every} min={1} max={12} onChange={(n) => update({ long_break_every: n })} />
-          <span className="unit">个</span>
+        <Row name={t.settings.general.longBreakEvery} desc={t.settings.general.longBreakEveryDesc}>
+          <NumberIn label={t.settings.general.longBreakEvery} value={s.long_break_every} min={1} max={12} onChange={(n) => update({ long_break_every: n })} />
+          <span className="unit">{t.settings.general.longBreakEveryUnit(s.long_break_every)}</span>
         </Row>
-        <Row name="提示音" desc="番茄结束和分心提醒时播放系统提示音">
-          <input type="checkbox" className="switch" aria-label="提示音" checked={s.sound} onChange={(e) => update({ sound: e.target.checked })} />
+        <Row name={t.settings.general.sound} desc={t.settings.general.soundDesc}>
+          <input type="checkbox" className="switch" aria-label={t.settings.general.sound} checked={s.sound} onChange={(e) => update({ sound: e.target.checked })} />
         </Row>
-        <Row name="回来后自动继续" desc="离开暂停后，一有键鼠操作就继续计时，并告诉你停了多久；关掉则等你点「继续专注」">
-          <input type="checkbox" className="switch" aria-label="回来后自动继续" checked={s.auto_resume} onChange={(e) => update({ auto_resume: e.target.checked })} />
+        <Row name={t.settings.general.autoResume} desc={t.settings.general.autoResumeDesc}>
+          <input type="checkbox" className="switch" aria-label={t.settings.general.autoResume} checked={s.auto_resume} onChange={(e) => update({ auto_resume: e.target.checked })} />
         </Row>
       </div>
     </>
@@ -142,44 +125,44 @@ function ChainPane({ s, update, go }: { s: Settings; update: Update; go: (p: Pan
   const r = s.rules;
   const blocked = r.block_apps.length + r.block_domains.length + r.block_keywords.length;
   const allowed = r.allow_apps.length + r.allow_domains.length + r.allow_keywords.length;
-  const modelName = (m: ProviderConfig | null) => (m?.model ? m.model : "未配置");
+  const modelName = (m: ProviderConfig | null) => (m?.model ? m.model : t.settings.chain.notConfigured);
   return (
     <>
       <div>
-        <h1>判断流程</h1>
-        <div className="lede">每次采样从上往下判断，哪一步有了结论就停。越往下越慢，也越花钱。</div>
+        <h1>{t.settings.chain.title}</h1>
+        <div className="lede">{t.settings.chain.lede}</div>
       </div>
       <div className="rows">
-        <Row step={1} name="采样" tag="local" desc="读取前台 App、窗口标题、URL 和空闲时间">
-          <Choice label="采样间隔" value={s.sample_secs} options={[3, 4, 5, 10]} fmt={secs} onChange={(n) => update({ sample_secs: n })} />
+        <Row step={1} name={t.settings.chain.sample} tag="local" desc={t.settings.chain.sampleDesc}>
+          <Choice label={t.settings.chain.sampleLabel} value={s.sample_secs} options={[3, 4, 5, 10]} fmt={secs} onChange={(n) => update({ sample_secs: n })} />
         </Row>
-        <Row step={2} name="空闲检测" tag="local" desc="键鼠无操作超过这个时间，视为离开：暂停计时，不算分心。有视频或通话在进行时不算离开">
-          <Choice label="空闲阈值" value={s.idle_secs} options={[60, 120, 300, 600]} fmt={span} onChange={(n) => update({ idle_secs: n })} />
+        <Row step={2} name={t.settings.chain.idle} tag="local" desc={t.settings.chain.idleDesc}>
+          <Choice label={t.settings.chain.idleLabel} value={s.idle_secs} options={[60, 120, 300, 600]} fmt={span} onChange={(n) => update({ idle_secs: n })} />
         </Row>
-        <Row step={3} name="规则匹配" tag="local" desc={`App 和域名命中名单就直接出结论 · 黑名单 ${blocked} 项，白名单 ${allowed} 项`}>
+        <Row step={3} name={t.settings.chain.rules} tag="local" desc={t.settings.chain.rulesDesc(blocked, allowed)}>
           <button className="btn small" style={{ fontSize: 13 }} onClick={() => go("lists")}>
-            编辑名单…
+            {t.settings.chain.editLists}
           </button>
         </Row>
-        <Row step={4} name="文本模型" tag="model" desc="规则没命中时，把标题、URL、窗口文字和任务描述发给模型">
+        <Row step={4} name={t.settings.chain.text} tag="model" desc={t.settings.chain.textDesc}>
           <button className="select" onClick={() => go("models")}>
             {modelName(s.text_model)}
           </button>
-          <input type="checkbox" className="switch" aria-label="启用文本模型" checked={s.text_enabled} onChange={(e) => update({ text_enabled: e.target.checked })} />
+          <input type="checkbox" className="switch" aria-label={t.settings.chain.textEnable} checked={s.text_enabled} onChange={(e) => update({ text_enabled: e.target.checked })} />
         </Row>
-        <Row step={5} name="视觉模型" tag="model" desc="文本模型没把握时才截图；画面没变（pHash 相同）不重复发">
+        <Row step={5} name={t.settings.chain.vision} tag="model" desc={t.settings.chain.visionDesc}>
           <button className="select" onClick={() => go("models")}>
             {modelName(s.vision_model)}
           </button>
-          <input type="checkbox" className="switch" aria-label="启用视觉模型" checked={s.vision_enabled} onChange={(e) => update({ vision_enabled: e.target.checked })} />
+          <input type="checkbox" className="switch" aria-label={t.settings.chain.visionEnable} checked={s.vision_enabled} onChange={(e) => update({ vision_enabled: e.target.checked })} />
         </Row>
-        <Row step={6} name="提醒" tag="local" desc="连续几次采样都判为分心才弹提醒，避免切一下窗口就被打扰">
-          <Choice label="连续分心次数" value={s.streak} options={[2, 3, 5]} fmt={(n) => `连续 ${n} 次`} onChange={(n) => update({ streak: n })} />
+        <Row step={6} name={t.settings.chain.remind} tag="local" desc={t.settings.chain.remindDesc}>
+          <Choice label={t.settings.chain.streakLabel} value={s.streak} options={[2, 3, 5]} fmt={t.settings.chain.streak} onChange={(n) => update({ streak: n })} />
         </Row>
       </div>
       <div className="foot-note">
         <LockIcon />
-        <span>关掉第 4、5 步后只用本地规则判断，任何内容都不会离开这台 Mac。</span>
+        <span>{t.settings.chain.footNote}</span>
       </div>
     </>
   );
@@ -192,7 +175,7 @@ function ListBox({ label, value, onChange }: { label: string; value: string[]; o
     <label className="listbox">
       <span className="head">
         <span className="label">{label}</span>
-        <span className="cap num">{value.length} 项</span>
+        <span className="cap num">{t.settings.lists.count(value.length)}</span>
       </span>
       <textarea
         rows={5}
@@ -210,18 +193,18 @@ function ListsPane({ s, update }: { s: Settings; update: Update }) {
   return (
     <>
       <div>
-        <h1>黑白名单</h1>
-        <div className="lede">每行一项，命中就直接出结论，不调用模型。先看 App，再看网站，最后看标题关键词；同一层里黑名单优先。</div>
+        <h1>{t.settings.lists.title}</h1>
+        <div className="lede">{t.settings.lists.lede}</div>
       </div>
       <div className="lists">
-        <ListBox label="黑名单 App" value={s.rules.block_apps} onChange={set("block_apps")} />
-        <ListBox label="白名单 App" value={s.rules.allow_apps} onChange={set("allow_apps")} />
-        <ListBox label="黑名单网站" value={s.rules.block_domains} onChange={set("block_domains")} />
-        <ListBox label="白名单网站" value={s.rules.allow_domains} onChange={set("allow_domains")} />
-        <ListBox label="标题黑名单关键词" value={s.rules.block_keywords} onChange={set("block_keywords")} />
-        <ListBox label="标题白名单关键词" value={s.rules.allow_keywords} onChange={set("allow_keywords")} />
+        <ListBox label={t.settings.lists.blockApps} value={s.rules.block_apps} onChange={set("block_apps")} />
+        <ListBox label={t.settings.lists.allowApps} value={s.rules.allow_apps} onChange={set("allow_apps")} />
+        <ListBox label={t.settings.lists.blockDomains} value={s.rules.block_domains} onChange={set("block_domains")} />
+        <ListBox label={t.settings.lists.allowDomains} value={s.rules.allow_domains} onChange={set("allow_domains")} />
+        <ListBox label={t.settings.lists.blockKeywords} value={s.rules.block_keywords} onChange={set("block_keywords")} />
+        <ListBox label={t.settings.lists.allowKeywords} value={s.rules.allow_keywords} onChange={set("allow_keywords")} />
       </div>
-      <div className="hint">网站写域名即可，如 bilibili.com，会同时匹配它的子域名。开始专注时加的「额外允许」只跟着当时的任务走（下一轮沿用，点「换个任务」时清空），且优先于这里的黑名单。专注中对黑名单里的网站点「这个页面算任务」，只放行那一个页面。</div>
+      <div className="hint">{t.settings.lists.hint}</div>
     </>
   );
 }
@@ -258,27 +241,27 @@ function Provider({ slot, title, cfg, onChange, status, onKeySaved }: {
       <div className="top">
         <div className="name">
           {title}
-          {cfg && <span className={ready ? "status ok" : "status no"}>{ready ? "可用" : "未就绪"}</span>}
+          {cfg && <span className={ready ? "status ok" : "status no"}>{ready ? t.settings.provider.ready : t.settings.provider.notReady}</span>}
         </div>
         <input
           type="checkbox"
           className="switch"
-          aria-label={`配置${title}`}
+          aria-label={t.settings.provider.configure[slot]}
           checked={!!cfg}
           onChange={(e) => onChange(e.target.checked ? PRESETS[0].cfg(slot) : null)}
         />
       </div>
       {cfg && (
         <div className="pgrid">
-          <label>快速填入</label>
-          <div className="chips" role="group" aria-label="常用配置">
+          <label>{t.settings.provider.quickFill}</label>
+          <div className="chips" role="group" aria-label={t.settings.provider.presets}>
             {PRESETS.filter((p) => p.slots.includes(slot)).map((p) => (
               <button key={p.name} className="chip" aria-pressed={sameCfg(cfg, p.cfg(slot))} onClick={() => onChange(p.cfg(slot))}>
                 {p.name}
               </button>
             ))}
           </div>
-          <label htmlFor={`${slot}-kind`}>服务商</label>
+          <label htmlFor={`${slot}-kind`}>{t.settings.provider.kind}</label>
           <select id={`${slot}-kind`} className="select" value={cfg.kind} onChange={(e) => onChange({ ...cfg, kind: e.target.value as ProviderKind })}>
             {(Object.keys(KIND_LABEL) as ProviderKind[]).map((k) => (
               <option key={k} value={k}>
@@ -288,8 +271,8 @@ function Provider({ slot, title, cfg, onChange, status, onKeySaved }: {
           </select>
           <label>Base URL</label>
           <TextIn label="Base URL" value={cfg.base_url} placeholder={URL_HINT[cfg.kind]} onChange={(v) => onChange({ ...cfg, base_url: v })} />
-          <label>模型</label>
-          <TextIn label="模型" value={cfg.model} placeholder={MODEL_HINT[cfg.kind][slot]} onChange={(v) => onChange({ ...cfg, model: v })} />
+          <label>{t.settings.provider.model}</label>
+          <TextIn label={t.settings.provider.model} value={cfg.model} placeholder={MODEL_HINT[cfg.kind][slot]} onChange={(v) => onChange({ ...cfg, model: v })} />
           {cfg.kind !== "ollama" && (
             <>
               <label htmlFor={`${slot}-key`}>API Key</label>
@@ -300,7 +283,7 @@ function Provider({ slot, title, cfg, onChange, status, onKeySaved }: {
                   style={{ flex: 1 }}
                   type="password"
                   value={key}
-                  placeholder={hasKey ? "已存在钥匙串，输入新值以替换" : "sk-..."}
+                  placeholder={hasKey ? t.settings.provider.keyStored : "sk-..."}
                   onChange={(e) => setKey(e.target.value)}
                 />
                 <button
@@ -311,13 +294,13 @@ function Provider({ slot, title, cfg, onChange, status, onKeySaved }: {
                       await api.setApiKey(slot, key);
                       setKey("");
                       onKeySaved();
-                      setMsg({ ok: true, text: "已保存到钥匙串" });
+                      setMsg({ ok: true, text: t.settings.provider.keySaved });
                     } catch (e) {
                       setMsg({ ok: false, text: errText(e) });
                     }
                   }}
                 >
-                  保存
+                  {t.settings.provider.save}
                 </button>
               </div>
             </>
@@ -339,7 +322,7 @@ function Provider({ slot, title, cfg, onChange, status, onKeySaved }: {
                 }
               }}
             >
-              {busy ? "测试中…" : "测试连接"}
+              {busy ? t.settings.provider.testing : t.settings.provider.test}
             </button>
           </div>
           {(msg || buildErr) && (
@@ -363,20 +346,20 @@ function ModelsPane({ s, update }: { s: Settings; update: Update }) {
   return (
     <>
       <div>
-        <h1>模型与密钥</h1>
-        <div className="lede">选一个常用配置，贴上 API Key，点「测试连接」就好。不配置也能用，但只靠黑白名单，名单外的窗口不会管。API Key 存在 macOS 钥匙串。</div>
+        <h1>{t.settings.models.title}</h1>
+        <div className="lede">{t.settings.models.lede}</div>
       </div>
       <div className="rows">
-        <Provider slot="text" title="文本模型" cfg={s.text_model} status={status} onKeySaved={refresh} onChange={(c) => update({ text_model: c })} />
-        <Provider slot="vision" title="视觉模型" cfg={s.vision_model} status={status} onKeySaved={refresh} onChange={(c) => update({ vision_model: c })} />
+        <Provider slot="text" title={t.settings.models.text} cfg={s.text_model} status={status} onKeySaved={refresh} onChange={(c) => update({ text_model: c })} />
+        <Provider slot="vision" title={t.settings.models.vision} cfg={s.vision_model} status={status} onKeySaved={refresh} onChange={(c) => update({ vision_model: c })} />
       </div>
       <details className="why">
-        <summary>高级</summary>
+        <summary>{t.settings.models.advanced}</summary>
       <div className="rows" style={{ marginTop: 10 }}>
-        <Row name="有把握阈值" desc="文本模型的把握低于它，就交给视觉模型（或不下结论）；Decision 模型低于它时视为没把握">
+        <Row name={t.settings.models.confidence} desc={t.settings.models.confidenceDesc}>
           <input
             type="range"
-            aria-label="有把握阈值"
+            aria-label={t.settings.models.confidence}
             min={0.5}
             max={0.95}
             step={0.05}
@@ -388,8 +371,8 @@ function ModelsPane({ s, update }: { s: Settings; update: Update }) {
             {Math.round(s.confidence * 100)}%
           </span>
         </Row>
-        <Row name="截图去重" desc="两张截图的 pHash 距离不超过它，就沿用上一次的判断，不再发送">
-          <NumberIn label="截图去重阈值" value={s.phash_threshold} min={0} max={32} onChange={(n) => update({ phash_threshold: n })} />
+        <Row name={t.settings.models.dedup} desc={t.settings.models.dedupDesc}>
+          <NumberIn label={t.settings.models.dedupLabel} value={s.phash_threshold} min={0} max={32} onChange={(n) => update({ phash_threshold: n })} />
         </Row>
       </div>
       </details>
@@ -413,12 +396,12 @@ function PrivacyPane({ s, update }: { s: Settings; update: Update }) {
   return (
     <>
       <div>
-        <h1>隐私</h1>
-        <div className="lede">规则和空闲检测都在本地完成。只有启用模型时，才会把下面写明的内容发出去。</div>
+        <h1>{t.settings.privacy.title}</h1>
+        <div className="lede">{t.settings.privacy.lede}</div>
       </div>
       <div className="rows">
-        <Row name="屏幕录制" desc="读取其他 App 的窗口标题、截图。没有它只能按 App 名判断。授权后需重启应用。">
-          <span className={granted ? "status ok" : "status no"}>{granted == null ? "" : granted ? "已授权" : "未授权"}</span>
+        <Row name={t.settings.privacy.screen} desc={t.settings.privacy.screenDesc}>
+          <span className={granted ? "status ok" : "status no"}>{granted == null ? "" : granted ? t.settings.privacy.granted : t.settings.privacy.notGranted}</span>
           {!granted && (
             <button
               className="btn small"
@@ -427,15 +410,15 @@ function PrivacyPane({ s, update }: { s: Settings; update: Update }) {
                 await api.openPrivacy("screen");
               }}
             >
-              去授权
+              {t.settings.privacy.grant}
             </button>
           )}
         </Row>
         <Row
-          name="辅助功能"
-          desc="规则没命中时，读取前台窗口里的部分文字和焦点控件交给模型，也能补上 Firefox 等浏览器的网址。不读密码框，不保存。"
+          name={t.settings.privacy.ax}
+          desc={t.settings.privacy.axDesc}
         >
-          {s.ax_enabled && <span className={axGranted ? "status ok" : "status no"}>{axGranted == null ? "" : axGranted ? "已授权" : "未授权"}</span>}
+          {s.ax_enabled && <span className={axGranted ? "status ok" : "status no"}>{axGranted == null ? "" : axGranted ? t.settings.privacy.granted : t.settings.privacy.notGranted}</span>}
           {s.ax_enabled && !axGranted && (
             <button
               className="btn small"
@@ -444,23 +427,23 @@ function PrivacyPane({ s, update }: { s: Settings; update: Update }) {
                 await api.openPrivacy("accessibility");
               }}
             >
-              去授权
+              {t.settings.privacy.grant}
             </button>
           )}
-          <input type="checkbox" className="switch" aria-label="读取窗口文字" checked={s.ax_enabled} onChange={(e) => update({ ax_enabled: e.target.checked })} />
+          <input type="checkbox" className="switch" aria-label={t.settings.privacy.axToggle} checked={s.ax_enabled} onChange={(e) => update({ ax_enabled: e.target.checked })} />
         </Row>
-        <Row name="自动化" desc="读取 Safari、Chrome、Arc、Edge、Brave 当前标签页的 URL，每个浏览器首次会单独弹窗。Firefox 的网址由辅助功能读取。">
+        <Row name={t.settings.privacy.automation} desc={t.settings.privacy.automationDesc}>
           <button className="btn small" onClick={() => api.openPrivacy("automation")}>
-            打开设置
+            {t.settings.privacy.openSettings}
           </button>
         </Row>
-        <Row name="发给文本模型" desc="前台 App 名、窗口标题、URL、这一轮的任务描述；开启辅助功能时，还有焦点控件和窗口里的部分文字（最多约 800 字）。" />
-        <Row name="发给视觉模型" desc="前台窗口所在屏幕的截图（缩小后的 JPEG），以及同样的文字信息。画面没变时不重复发送。" />
-        <Row name="本地数据" desc="设置和统计存在 ~/Library/Application Support/dev.aoba.pomosupervisor/，只在这台 Mac 上。" />
+        <Row name={t.settings.privacy.sendText} desc={t.settings.privacy.sendTextDesc} />
+        <Row name={t.settings.privacy.sendVision} desc={t.settings.privacy.sendVisionDesc} />
+        <Row name={t.settings.privacy.localData} desc={t.settings.privacy.localDataDesc} />
       </div>
       <div className="foot-note">
         <LockIcon />
-        <span>在「判断流程」里关掉第 4、5 步后只用本地规则判断，任何内容都不会离开这台 Mac。</span>
+        <span>{t.settings.privacy.footNote}</span>
       </div>
     </>
   );
@@ -534,7 +517,7 @@ export default function SettingsWindow() {
 
   return (
     <div className="settings">
-      <nav className="sidebar" aria-label="设置分类" data-tauri-drag-region>
+      <nav className="sidebar" aria-label={t.settings.sidebar} data-tauri-drag-region>
         {PANES.map(([id, name]) => (
           <button key={id} aria-current={pane === id ? "page" : undefined} onClick={() => setPane(id)}>
             {name}
@@ -542,7 +525,7 @@ export default function SettingsWindow() {
         ))}
       </nav>
       <main className="pane" data-tauri-drag-region>
-        {err && <div className="msg bad">保存失败：{err}</div>}
+        {err && <div className="msg bad">{t.settings.saveFailed(err)}</div>}
         {s && pane === "general" && <GeneralPane s={s} update={update} />}
         {s && pane === "chain" && <ChainPane s={s} update={update} go={setPane} />}
         {s && pane === "lists" && <ListsPane s={s} update={update} />}

@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use crate::i18n::Lang;
 use std::path::Path;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -40,29 +41,61 @@ fn v(items: &[&str]) -> Vec<String> {
 }
 
 impl Default for Rules {
+    /// Fixed (the Simplified Chinese lists), so tests don't depend on the machine's language.
     fn default() -> Self {
+        Self::for_lang(Lang::ZhHans)
+    }
+}
+
+impl Rules {
+    /// The lists a first launch starts with: a shared base plus the region's own time sinks.
+    pub fn for_lang(lang: Lang) -> Self {
+        let mut block_apps = v(&["Steam", "Netflix", "TikTok"]);
+        let mut block_domains = v(&[
+            "youtube.com", "tiktok.com", "x.com", "twitter.com", "reddit.com", "netflix.com",
+            "twitch.tv", "instagram.com", "facebook.com",
+        ]);
+        let mut block_keywords = v(&["YouTube", "Netflix", "Twitch"]);
+        let (apps, domains, keywords): (&[&str], &[&str], &[&str]) = match lang {
+            Lang::ZhHans => (
+                &["哔哩哔哩", "抖音"],
+                &[
+                    "bilibili.com", "douyin.com", "weibo.com", "xiaohongshu.com", "taobao.com", "jd.com",
+                    "iqiyi.com", "youku.com", "huya.com", "douyu.com",
+                ],
+                &["bilibili", "哔哩哔哩", "抖音", "微博", "小红书"],
+            ),
+            Lang::ZhHant => (
+                &[],
+                &["dcard.tw", "ptt.cc", "shopee.tw", "pchome.com.tw", "gamer.com.tw", "linetv.tw"],
+                &["Dcard", "巴哈姆特"],
+            ),
+            Lang::Ja => (
+                &[],
+                &["nicovideo.jp", "abema.tv", "5ch.net", "amazon.co.jp", "rakuten.co.jp", "pixiv.net"],
+                &["ニコニコ", "ABEMA"],
+            ),
+            Lang::EnUs => (&[], &["amazon.com", "hulu.com", "9gag.com"], &[]),
+            Lang::EnAu => (&[], &["amazon.com.au", "ebay.com.au", "9gag.com"], &[]),
+        };
+        block_apps.extend(v(apps));
+        block_domains.extend(v(domains));
+        block_keywords.extend(v(keywords));
         Self {
-            block_apps: v(&["Steam", "Netflix", "哔哩哔哩", "抖音", "TikTok"]),
+            block_apps,
             allow_apps: v(&[
                 "Xcode", "Code", "Visual Studio Code", "Cursor", "Zed", "Terminal", "iTerm2",
                 "Ghostty", "WezTerm", "kitty", "Alacritty", "IntelliJ IDEA", "PyCharm", "RustRover",
                 "CLion", "WebStorm", "GoLand", "Obsidian", "Pages", "Keynote", "Numbers",
                 "Microsoft Word", "Microsoft Excel", "Microsoft PowerPoint", "Figma",
             ]),
-            block_domains: v(&[
-                "bilibili.com", "youtube.com", "douyin.com", "tiktok.com", "weibo.com", "x.com",
-                "twitter.com", "reddit.com", "xiaohongshu.com", "taobao.com", "jd.com",
-                "netflix.com", "twitch.tv", "instagram.com", "facebook.com", "iqiyi.com",
-                "youku.com", "huya.com", "douyu.com",
-            ]),
+            block_domains,
             allow_domains: v(&[
                 "github.com", "gitlab.com", "stackoverflow.com", "docs.rs", "crates.io",
                 "developer.mozilla.org", "developer.apple.com", "tauri.app", "rust-lang.org",
                 "arxiv.org",
             ]),
-            block_keywords: v(&[
-                "bilibili", "哔哩哔哩", "YouTube", "抖音", "微博", "小红书", "Netflix", "Twitch",
-            ]),
+            block_keywords,
             allow_keywords: vec![],
         }
     }
@@ -121,7 +154,8 @@ impl Settings {
         std::fs::read_to_string(path)
             .ok()
             .and_then(|s| serde_json::from_str::<Settings>(&s).ok())
-            .unwrap_or_default()
+            // First launch: start from the lists of the system's language.
+            .unwrap_or_else(|| Settings { rules: Rules::for_lang(crate::i18n::lang()), ..Default::default() })
             .sanitized()
     }
 
@@ -151,6 +185,22 @@ impl Settings {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn default_lists_follow_the_language() {
+        let set = |v: Vec<String>| v.into_iter().collect::<std::collections::BTreeSet<_>>();
+        let zh = Rules::for_lang(Lang::ZhHans);
+        assert_eq!(zh, Rules::default());
+        assert!(zh.block_domains.contains(&"bilibili.com".to_string()) && zh.block_apps.contains(&"哔哩哔哩".to_string()));
+        let ja = Rules::for_lang(Lang::Ja);
+        assert!(ja.block_domains.contains(&"nicovideo.jp".to_string()) && !ja.block_domains.contains(&"bilibili.com".to_string()));
+        for l in [Lang::ZhHans, Lang::ZhHant, Lang::EnUs, Lang::EnAu, Lang::Ja] {
+            let r = Rules::for_lang(l);
+            assert!(r.block_domains.contains(&"youtube.com".to_string()));
+            assert_eq!(set(r.allow_apps), set(zh.allow_apps.clone()));
+            assert_eq!(r.block_domains.len(), set(r.block_domains.clone()).len(), "duplicate domain for {l:?}");
+        }
+    }
 
     #[test]
     fn provider_kinds_round_trip() {

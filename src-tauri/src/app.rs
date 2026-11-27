@@ -204,6 +204,8 @@ pub struct VerdictEvent {
     /// What "this is part of the task" would allow: the site, else the app. None for a
     /// browser whose URL we couldn't read, where the only thing to allow is the whole browser.
     pub allow_target: Option<String>,
+    /// Settled by this round's allow list ("rules" stage).
+    pub round_allowed: bool,
     pub streak: u32,
     pub threshold: u32,
     pub alerted: bool,
@@ -596,7 +598,8 @@ pub fn spawn_loop(app: AppHandle) {
                 crate::windows::hide_passive(&app);
             }
             if rest_done {
-                notify(&app, "暂停结束", "计时继续了，回到任务上吧。");
+                let (title, body) = crate::i18n::tr().pause_over;
+                notify(&app, title, body);
                 if state.settings.read().unwrap().sound {
                     play("Glass");
                 }
@@ -648,7 +651,8 @@ fn on_phase_end(app: &AppHandle, state: &AppState, phase: Phase) {
                 core.waiting = Waiting::start();
                 core.returned = None;
             }
-            notify(app, "番茄完成", "休息一下，或者接着再来一轮。");
+            let (title, body) = crate::i18n::tr().round_done;
+            notify(app, title, body);
             // The person is probably mid-keystroke: show the card without taking focus.
             emit_tick(app, state);
             crate::windows::show_popover(app, "passive");
@@ -660,7 +664,8 @@ fn on_phase_end(app: &AppHandle, state: &AppState, phase: Phase) {
                 core.break_over = true;
                 core.waiting = Waiting::start();
             }
-            notify(app, "休息结束", "准备好就开始下一个番茄。");
+            let (title, body) = crate::i18n::tr().break_over;
+            notify(app, title, body);
             emit_tick(app, state);
             crate::windows::show_popover(app, "passive");
         }
@@ -709,7 +714,7 @@ fn build_stages(state: &Arc<AppState>, s: &Arc<Sample>, settings: &Arc<Settings>
                     StageResult::Pass(None)
                 } else if sampler::display_held_awake().await {
                     // Watching a lecture or sitting in a call: let the rest of the chain say whether it is the task.
-                    StageResult::Pass(Some("长时间没有键鼠操作，但有视频或通话在进行，不算离开".into()))
+                    StageResult::Pass(Some(crate::i18n::tr().idle_but_media.into()))
                 } else {
                     StageResult::Away
                 }
@@ -723,10 +728,13 @@ fn build_stages(state: &Arc<AppState>, s: &Arc<Sample>, settings: &Arc<Settings>
         stages.push(Box::new(move || {
             Box::pin(async move {
                 let extra = state.core.lock().unwrap().round_allow.clone();
-                let hit = crate::rules::round_allow(&extra, &s).or_else(|| crate::rules::evaluate(&settings.rules, &s));
+                // "round" is reported as "rules", flagged as this round's allow list (see run_sample).
+                let hit = crate::rules::round_allow(&extra, &s)
+                    .map(|h| (h, "round"))
+                    .or_else(|| crate::rules::evaluate(&settings.rules, &s).map(|h| (h, "rules")));
                 match hit {
-                    Some((focused, reason)) => {
-                        StageResult::Decided(Verdict { focused, stage: "rules", reason, confidence: 1.0, cached: false })
+                    Some(((focused, reason), stage)) => {
+                        StageResult::Decided(Verdict { focused, stage, reason, confidence: 1.0, cached: false })
                     }
                     None => StageResult::Pass(None),
                 }
@@ -756,7 +764,7 @@ fn build_stages(state: &Arc<AppState>, s: &Arc<Sample>, settings: &Arc<Settings>
                         }
                         Err(e) => {
                             let _ = state.store.lock().unwrap().log_llm("text", false, false);
-                            return StageResult::Pass(Some(format!("文本模型：{e}")));
+                            return StageResult::Pass(Some((crate::i18n::tr().text_model_err)(&e.to_string())));
                         }
                     },
                 };
@@ -769,7 +777,7 @@ fn build_stages(state: &Arc<AppState>, s: &Arc<Sample>, settings: &Arc<Settings>
                         confidence: j.confidence,
                         cached: was_cached,
                     }),
-                    _ => StageResult::Pass(Some(format!("文本模型没把握（{:.2}）：{}", j.confidence, j.reason))),
+                    _ => StageResult::Pass(Some((crate::i18n::tr().text_model_unsure)(j.confidence, &j.reason))),
                 }
             })
         }));
@@ -788,8 +796,8 @@ fn build_stages(state: &Arc<AppState>, s: &Arc<Sample>, settings: &Arc<Settings>
                 let (cx, cy) = (s.cx, s.cy);
                 let shot = match tokio::task::spawn_blocking(move || crate::vision::capture(cx, cy)).await {
                     Ok(Ok(shot)) => shot,
-                    Ok(Err(e)) => return StageResult::Pass(Some(format!("截图：{e}"))),
-                    Err(e) => return StageResult::Pass(Some(format!("截图：{e}"))),
+                    Ok(Err(e)) => return StageResult::Pass(Some((crate::i18n::tr().shot_err)(&e.to_string()))),
+                    Err(e) => return StageResult::Pass(Some((crate::i18n::tr().shot_err)(&e.to_string()))),
                 };
                 let reuse = state
                     .core
@@ -817,7 +825,7 @@ fn build_stages(state: &Arc<AppState>, s: &Arc<Sample>, settings: &Arc<Settings>
                         }
                         Err(e) => {
                             let _ = state.store.lock().unwrap().log_llm("vision", false, false);
-                            return StageResult::Pass(Some(format!("视觉模型：{e}")));
+                            return StageResult::Pass(Some((crate::i18n::tr().vision_model_err)(&e.to_string())));
                         }
                     },
                 };
@@ -830,7 +838,7 @@ fn build_stages(state: &Arc<AppState>, s: &Arc<Sample>, settings: &Arc<Settings>
                         confidence: j.confidence,
                         cached: was_cached,
                     }),
-                    None => StageResult::Pass(Some(format!("视觉模型也无法判断：{}", j.reason))),
+                    None => StageResult::Pass(Some((crate::i18n::tr().vision_model_unsure)(&j.reason))),
                 }
             })
         }));
@@ -848,7 +856,7 @@ async fn run_sample(app: &AppHandle, state: &Arc<AppState>) {
 
     let own = sample.pid == std::process::id() as u64;
     let (outcome, notes) = if own && sample.idle_secs <= settings.idle_secs {
-        (Outcome::Undecided, vec!["本应用在前台，跳过".to_string()])
+        (Outcome::Undecided, vec![crate::i18n::tr().self_in_front.to_string()])
     } else {
         let s = Arc::new(sample.clone());
         run_chain(build_stages(state, &s, &settings, &task)).await
@@ -908,15 +916,15 @@ async fn run_sample(app: &AppHandle, state: &Arc<AppState>) {
     };
 
     let (stage, result, reason, confidence, cached) = match &outcome {
-        Outcome::Away => ("idle".to_string(), "away", format!("{} 秒无键鼠操作，已暂停计时", sample.idle_secs), None, false),
+        Outcome::Away => ("idle".to_string(), "away", (crate::i18n::tr().away)(sample.idle_secs), None, false),
         Outcome::Decided(v) => (
-            v.stage.to_string(),
+            (if v.stage == "round" { "rules" } else { v.stage }).to_string(),
             if v.focused { "focused" } else { "distracted" },
             v.reason.clone(),
             Some(v.confidence),
             v.cached,
         ),
-        Outcome::Undecided => ((if own { "self" } else { "none" }).to_string(), "none", "无法判断，不计入".to_string(), None, false),
+        Outcome::Undecided => ((if own { "self" } else { "none" }).to_string(), "none", crate::i18n::tr().undecided.to_string(), None, false),
     };
     let _ = signal;
 
@@ -946,6 +954,7 @@ async fn run_sample(app: &AppHandle, state: &Arc<AppState>) {
         title: sample.title.clone(),
         url: sample.url.clone(),
         allow_target,
+        round_allowed: matches!(&outcome, Outcome::Decided(v) if v.stage == "round"),
         streak,
         threshold: settings.streak,
         alerted,

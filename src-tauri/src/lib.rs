@@ -2,6 +2,7 @@ mod app;
 pub mod ax;
 mod commands;
 mod decision;
+mod i18n;
 mod llm;
 mod pipeline;
 mod rules;
@@ -27,14 +28,16 @@ pub fn run() {
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
 
+            let tr = i18n::strings(i18n::init());
+
             let data = app.path().app_data_dir()?;
             let state = app::AppState::new(data.join("settings.json"), data.join("pomo.db"))?;
             app.manage(Arc::new(state));
 
-            let show = MenuItem::with_id(app, "show", "打开 PomoSupervisor", true, None::<&str>)?;
-            let review = MenuItem::with_id(app, "review", "专注回顾", true, None::<&str>)?;
-            let settings = MenuItem::with_id(app, "settings", "设置…", true, None::<&str>)?;
-            let quit = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
+            let show = MenuItem::with_id(app, "show", tr.menu_show, true, None::<&str>)?;
+            let review = MenuItem::with_id(app, "review", tr.menu_review, true, None::<&str>)?;
+            let settings = MenuItem::with_id(app, "settings", tr.menu_settings, true, None::<&str>)?;
+            let quit = MenuItem::with_id(app, "quit", tr.menu_quit, true, None::<&str>)?;
             let sep = PredefinedMenuItem::separator(app)?;
             let menu = Menu::with_items(app, &[&show, &review, &settings, &sep, &quit])?;
             TrayIconBuilder::with_id("main")
@@ -99,6 +102,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::get_state,
+            commands::get_locale,
             commands::last_verdict,
             commands::start_focus,
             commands::start_break,

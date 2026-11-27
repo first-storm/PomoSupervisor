@@ -37,10 +37,10 @@ pub fn hash(img: &DynamicImage) -> ImageHash {
 /// Capture the display under the point (the active window's centre), downscale, hash, encode.
 pub fn capture(x: i32, y: i32) -> anyhow::Result<Shot> {
     let monitor = xcap::Monitor::from_point(x, y)
-        .or_else(|_| xcap::Monitor::all().map_err(anyhow::Error::from)?.into_iter().next().ok_or(anyhow::anyhow!("没有显示器")))?;
+        .or_else(|_| xcap::Monitor::all().map_err(anyhow::Error::from)?.into_iter().next().ok_or(anyhow::anyhow!(crate::i18n::tr().err_no_display)))?;
     let raw = monitor.capture_image()?;
     if looks_blank(&raw) {
-        anyhow::bail!("截图为空：请在系统设置中授予“屏幕录制”权限");
+        anyhow::bail!(crate::i18n::tr().err_blank_shot);
     }
     let img = fit(DynamicImage::ImageRgba8(raw));
     Ok(Shot { hash: hash(&img), jpeg_b64: encode_jpeg(&img)?, width: img.width(), height: img.height() })

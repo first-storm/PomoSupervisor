@@ -1,0 +1,3 @@
+/* Permission prompts (see Info.plist). */
+"NSAppleEventsUsageDescription" = "PomoSupervisor 需要讀取瀏覽器目前分頁的網址，用來判斷你是否在專注。";
+"NSScreenCaptureUsageDescription" = "PomoSupervisor 需要讀取視窗標題，並在開啟視覺判斷時截圖。";
